@@ -2,6 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
+from decimal import Decimal
 
 from app.db.session import get_db
 from app.services.core import CoreService
@@ -27,9 +28,10 @@ def get_products(
     category: Optional[str] = None,
     is_active: Optional[bool] = None,
     search: Optional[str] = None,
+    max_price: Optional[Decimal] = None,
     service: CoreService = Depends(get_service)
 ):
-    return service.get_products(category=category, is_active=is_active, search=search)
+    return service.get_products(category=category, is_active=is_active, search=search, max_price=max_price)
 
 @router.get("/products/{product_id}", response_model=ProductResponse)
 def get_product(product_id: UUID, service: CoreService = Depends(get_service)):

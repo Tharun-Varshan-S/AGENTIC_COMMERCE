@@ -4,12 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.health import router as health_router
 from app.api.endpoints import router as core_router
 from app.api.analytics import router as analytics_router
+from app.api.cart import router as cart_router
+from app.api.agent import router as agent_router
 import app.db.base  # Load models for SQLAlchemy registry
 
 app = FastAPI(
-    title="Commerce API",
-    description="Backend for AI-Native Merchant Commerce Platform",
-    version="1.0.0",
+    title="AI-Native Merchant Commerce Platform",
 )
 
 # CORS configuration
@@ -20,7 +20,7 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -28,5 +28,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(health_router, prefix="/api", tags=["Health"])
-app.include_router(core_router, prefix="/api", tags=["Core Commerce"])
+app.include_router(core_router, prefix="/api", tags=["Core"])
 app.include_router(analytics_router, prefix="/api", tags=["Analytics"])
+app.include_router(cart_router, prefix="/api", tags=["Cart"])
+app.include_router(agent_router, prefix="/api", tags=["Agent"])

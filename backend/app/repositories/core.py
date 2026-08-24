@@ -1,11 +1,12 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import select, or_
+from decimal import Decimal
+from uuid import UUID
 
 from app.models.merchant import Merchant, MerchantRule
 from app.models.product import Product, Inventory
 from app.models.customer import Customer
-from uuid import UUID
 
 class CoreRepository:
     def __init__(self, db: Session):
@@ -18,7 +19,8 @@ class CoreRepository:
         self,
         category: Optional[str] = None,
         is_active: Optional[bool] = None,
-        search: Optional[str] = None
+        search: Optional[str] = None,
+        max_price: Optional[Decimal] = None
     ) -> List[Product]:
         query = select(Product)
         if category:
@@ -32,6 +34,8 @@ class CoreRepository:
                 Product.description.ilike(search_term),
                 Product.sku.ilike(search_term)
             ))
+        if max_price is not None:
+            query = query.filter(Product.price <= max_price)
         return self.db.scalars(query).all()
 
     def get_product(self, product_id: UUID) -> Optional[Product]:

@@ -1,6 +1,7 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from uuid import UUID
+from decimal import Decimal
 
 from app.repositories.core import CoreRepository
 from app.schemas.core import (
@@ -23,9 +24,10 @@ class CoreService:
         self,
         category: Optional[str] = None,
         is_active: Optional[bool] = None,
-        search: Optional[str] = None
+        search: Optional[str] = None,
+        max_price: Optional[Decimal] = None
     ) -> List[ProductResponse]:
-        products = self.repo.get_products(category=category, is_active=is_active, search=search)
+        products = self.repo.get_products(category=category, is_active=is_active, search=search, max_price=max_price)
         
         results = []
         for p in products:

@@ -180,7 +180,7 @@ export default function Dashboard() {
                 <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} tickFormatter={(val) => `₹${val/1000}k`} />
                 <Tooltip 
-                  formatter={(value: number) => formatCurrency(value)}
+                  formatter={(value: any) => formatCurrency(Number(value))}
                   contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
                 />
                 <Legend iconType="circle" wrapperStyle={{paddingTop: '20px'}} />
@@ -201,7 +201,7 @@ export default function Dashboard() {
                 <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} allowDecimals={false} />
                 <Tooltip
-                  cursor={{fill: '#f1f5f9'}}
+                  formatter={(value: any) => value}
                   contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
                 />
                 <Legend iconType="circle" wrapperStyle={{paddingTop: '20px'}} />

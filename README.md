@@ -68,7 +68,8 @@ source venv/bin/activate  # On Windows use: venv\Scripts\activate
 pip install -r requirements.txt
 
 # Run the backend development server
-fastapi dev app/main.py
+uvicorn app.main:app --reload --port 8000
+
 ```
 > **API Docs**: Available at [http://localhost:8000/docs](http://localhost:8000/docs)
 > **Health Check**: Available at [http://localhost:8000/api/health](http://localhost:8000/api/health)
