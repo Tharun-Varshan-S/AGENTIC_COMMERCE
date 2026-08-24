@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.health import router as health_router
 from app.api.endpoints import router as core_router
+from app.api.analytics import router as analytics_router
 import app.db.base  # Load models for SQLAlchemy registry
 
 app = FastAPI(
@@ -28,3 +29,4 @@ app.add_middleware(
 # Include routers
 app.include_router(health_router, prefix="/api", tags=["Health"])
 app.include_router(core_router, prefix="/api", tags=["Core Commerce"])
+app.include_router(analytics_router, prefix="/api", tags=["Analytics"])

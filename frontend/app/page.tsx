@@ -1,126 +1,301 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Activity, ServerCrash, Store, Package, Users } from "lucide-react";
+import { fetchDashboard, fetchRecentActivity } from "@/lib/api";
+import { 
+  TrendingUp, 
+  ShoppingCart, 
+  Package, 
+  AlertTriangle,
+  Bot,
+  ArrowUpRight,
+  ArrowDownRight
+} from "lucide-react";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Legend
+} from "recharts";
 
-export default function Home() {
-  const [status, setStatus] = useState<"loading" | "connected" | "error">("loading");
-  const [service, setService] = useState<string>("");
-  const [stats, setStats] = useState({ merchants: 0, products: 0, customers: 0 });
+function formatCurrency(amount: string | number) {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0
+  }).format(Number(amount));
+}
+
+function formatDate(dateString: string) {
+  return new Date(dateString).toLocaleDateString('en-IN', {
+    month: 'short',
+    day: 'numeric'
+  });
+}
+
+function formatTime(dateString: string) {
+  return new Date(dateString).toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+export default function Dashboard() {
+  const [dashboard, setDashboard] = useState<any>(null);
+  const [activity, setActivity] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
+    async function load() {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-        
-        // Health check
-        const res = await fetch(`${apiUrl}/api/health`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.status === "ok") {
-            setStatus("connected");
-            setService(data.service);
-            
-            // Fetch stats
-            const [mRes, pRes, cRes] = await Promise.all([
-              fetch(`${apiUrl}/api/merchants`),
-              fetch(`${apiUrl}/api/products`),
-              fetch(`${apiUrl}/api/customers`)
-            ]);
-            
-            if (mRes.ok && pRes.ok && cRes.ok) {
-              const merchants = await mRes.json();
-              const products = await pRes.json();
-              const customers = await cRes.json();
-              
-              setStats({
-                merchants: merchants.length,
-                products: products.length,
-                customers: customers.length
-              });
-            }
-          } else {
-            setStatus("error");
-          }
-        } else {
-          setStatus("error");
-        }
-      } catch (err) {
-        console.error("Fetch failed", err);
-        setStatus("error");
+        const [dashData, actData] = await Promise.all([
+          fetchDashboard(),
+          fetchRecentActivity()
+        ]);
+        setDashboard(dashData);
+        setActivity(actData);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
       }
-    };
-
-    fetchData();
+    }
+    load();
   }, []);
 
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  if (!dashboard) {
+    return <div className="text-red-500">Failed to load dashboard data. Ensure backend is running.</div>;
+  }
+
+  const { kpis, revenue_chart, orders_chart } = dashboard;
+  const aiRevenuePercentage = kpis.total_revenue > 0 ? (kpis.ai_revenue / kpis.total_revenue) * 100 : 0;
+  
+  // Format chart data for Recharts
+  const formattedRevenueChart = revenue_chart.map((d: any) => ({
+    ...d,
+    date: formatDate(d.date),
+    direct: Number(d.direct_revenue),
+    ai: Number(d.ai_revenue)
+  }));
+
+  const formattedOrdersChart = orders_chart.map((d: any) => ({
+    ...d,
+    date: formatDate(d.date),
+    direct: Number(d.direct_orders),
+    ai: Number(d.ai_orders)
+  }));
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white p-4">
-      <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-8 space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">
-            Razorpay MVP
-          </h1>
-          <p className="text-zinc-400 text-sm">
-            AI-Native Merchant Commerce Platform
-          </p>
+    <div className="space-y-6 max-w-7xl mx-auto">
+      
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-slate-500">Total Revenue (7d)</h3>
+            <TrendingUp className="h-4 w-4 text-slate-400" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-semibold text-slate-900">{formatCurrency(kpis.total_revenue)}</span>
+          </div>
         </div>
 
-        <div className="bg-black/50 rounded-lg p-6 flex flex-col gap-4 border border-zinc-800/50">
-          {status === "loading" && (
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-              <p className="text-zinc-400">Connecting to Backend...</p>
-            </div>
-          )}
-
-          {status === "connected" && (
-            <>
-              <div className="flex items-center justify-center gap-3 text-emerald-400 bg-emerald-400/10 px-4 py-2 rounded-full mb-2">
-                <Activity className="w-5 h-5" />
-                <span className="font-medium">🟢 Backend Status: Connected</span>
-              </div>
-              
-              <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-                <div className="bg-zinc-800/50 rounded-lg p-3 flex flex-col items-center gap-2 border border-zinc-700/50">
-                  <Store className="w-5 h-5 text-blue-400" />
-                  <span className="text-2xl font-bold text-zinc-100">{stats.merchants}</span>
-                  <span className="text-xs text-zinc-400">Merchants</span>
-                </div>
-                <div className="bg-zinc-800/50 rounded-lg p-3 flex flex-col items-center gap-2 border border-zinc-700/50">
-                  <Package className="w-5 h-5 text-indigo-400" />
-                  <span className="text-2xl font-bold text-zinc-100">{stats.products}</span>
-                  <span className="text-xs text-zinc-400">Products</span>
-                </div>
-                <div className="bg-zinc-800/50 rounded-lg p-3 flex flex-col items-center gap-2 border border-zinc-700/50">
-                  <Users className="w-5 h-5 text-purple-400" />
-                  <span className="text-2xl font-bold text-zinc-100">{stats.customers}</span>
-                  <span className="text-xs text-zinc-400">Customers</span>
-                </div>
-              </div>
-            </>
-          )}
-
-          {status === "error" && (
-            <div className="flex flex-col items-center gap-3 text-rose-400 bg-rose-400/10 px-4 py-3 rounded-xl text-center">
-              <ServerCrash className="w-6 h-6" />
-              <span className="font-medium">🔴 Backend Status: Disconnected</span>
-              <p className="text-xs text-zinc-500">Ensure backend is running on port 8000 and database is seeded.</p>
-            </div>
-          )}
+        <div className="bg-indigo-50 rounded-xl border border-indigo-100 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-indigo-600">AI-Assisted Revenue</h3>
+            <Bot className="h-4 w-4 text-indigo-500" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-semibold text-indigo-900">{formatCurrency(kpis.ai_revenue)}</span>
+            <span className="text-sm font-medium text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">
+              {aiRevenuePercentage.toFixed(1)}% of total
+            </span>
+          </div>
         </div>
 
-        <div className="pt-4 flex justify-center">
-          <Button 
-            variant="outline" 
-            className="w-full border-zinc-700 bg-zinc-800 text-zinc-200 hover:bg-zinc-700 hover:text-white transition-colors"
-            onClick={() => window.location.reload()}
-          >
-            Refresh Status
-          </Button>
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-slate-500">Orders (7d)</h3>
+            <ShoppingCart className="h-4 w-4 text-slate-400" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-semibold text-slate-900">{kpis.total_orders}</span>
+            <span className="text-sm font-medium text-slate-500">
+              ({kpis.ai_orders} AI)
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-slate-500">Active Products</h3>
+            <Package className="h-4 w-4 text-slate-400" />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-2xl font-semibold text-slate-900">{kpis.active_products}</span>
+            {kpis.low_stock_products > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                <AlertTriangle className="h-3 w-3" />
+                {kpis.low_stock_products} Low Stock
+              </span>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* Revenue Chart */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <h3 className="text-base font-semibold text-slate-800 mb-4">Revenue Breakdown</h3>
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={formattedRevenueChart} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorAi" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorDirect" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#94a3b8" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} tickFormatter={(val) => `₹${val/1000}k`} />
+                <Tooltip 
+                  formatter={(value: number) => formatCurrency(value)}
+                  contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                />
+                <Legend iconType="circle" wrapperStyle={{paddingTop: '20px'}} />
+                <Area type="monotone" dataKey="ai" name="AI Revenue" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorAi)" />
+                <Area type="monotone" dataKey="direct" name="Direct Revenue" stroke="#94a3b8" strokeWidth={2} fillOpacity={1} fill="url(#colorDirect)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Orders Chart */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <h3 className="text-base font-semibold text-slate-800 mb-4">Order Volume</h3>
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={formattedOrdersChart} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} allowDecimals={false} />
+                <Tooltip
+                  cursor={{fill: '#f1f5f9'}}
+                  contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                />
+                <Legend iconType="circle" wrapperStyle={{paddingTop: '20px'}} />
+                <Bar dataKey="ai" name="AI Orders" stackId="a" fill="#818cf8" radius={[0, 0, 4, 4]} />
+                <Bar dataKey="direct" name="Direct Orders" stackId="a" fill="#cbd5e1" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Activity */}
+      {activity && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          
+          {/* Recent Orders */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h3 className="text-base font-semibold text-slate-800">Recent Orders</h3>
+              <a href="#" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">View all</a>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-slate-500 bg-slate-50 border-b border-slate-200 uppercase">
+                  <tr>
+                    <th className="px-5 py-3 font-medium">Order</th>
+                    <th className="px-5 py-3 font-medium">Source</th>
+                    <th className="px-5 py-3 font-medium">Amount</th>
+                    <th className="px-5 py-3 font-medium text-right">Time</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {activity.recent_orders.map((order: any, idx: number) => (
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-5 py-3 font-medium text-slate-900">{order.order_number}</td>
+                      <td className="px-5 py-3">
+                        {order.source === 'AI' ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
+                            <Bot className="h-3 w-3" /> AI
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
+                            Direct
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3 font-medium">{formatCurrency(order.total)}</td>
+                      <td className="px-5 py-3 text-right text-slate-500 whitespace-nowrap">
+                        {formatDate(order.created_at)} {formatTime(order.created_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* AI Decisions Log */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h3 className="text-base font-semibold text-slate-800">Recent AI Decisions</h3>
+              <a href="#" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">View log</a>
+            </div>
+            <div className="p-0 flex-1 overflow-y-auto">
+              <ul className="divide-y divide-slate-100">
+                {activity.recent_decisions.map((dec: any, idx: number) => (
+                  <li key={idx} className="p-5 hover:bg-slate-50 transition-colors">
+                    <div className="flex items-start gap-4">
+                      <div className="flex-shrink-0 mt-1">
+                        <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                          <Bot className="h-4 w-4" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate">
+                          Intent: {dec.intent.replace('_', ' ')}
+                        </p>
+                        <p className="text-sm text-slate-500 mt-1 line-clamp-2">
+                          {dec.reason}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0 text-xs text-slate-400 whitespace-nowrap">
+                        {formatDate(dec.created_at)}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      )}
+
     </div>
   );
 }

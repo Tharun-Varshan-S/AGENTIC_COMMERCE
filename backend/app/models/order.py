@@ -34,6 +34,7 @@ class Order(BaseModel):
     cart_id = Column(ForeignKey("carts.id"), nullable=False, unique=True, index=True)
     order_number = Column(String, nullable=False, unique=True, index=True)
     status = Column(String, default="PENDING", nullable=False) # PENDING, CONFIRMED, PAID, CANCELLED, FAILED
+    source = Column(String, default="DIRECT", nullable=False) # DIRECT, AI
     currency = Column(String, default="INR", nullable=False)
     subtotal = Column(Numeric(10, 2), nullable=False)
     discount = Column(Numeric(10, 2), default=0)

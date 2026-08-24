@@ -1,7 +1,9 @@
 import uuid
+import random
+from datetime import datetime, timedelta
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import text
 
 from app.db.session import SessionLocal
 from app.models.merchant import Merchant, MerchantRule
@@ -14,11 +16,9 @@ from app.models.audit import AuditLog
 def seed_db():
     db: Session = SessionLocal()
     try:
-        # Check if already seeded to prevent duplicates
-        existing_merchant = db.scalars(select(Merchant).filter(Merchant.email == "hello@technovagaming.com")).first()
-        if existing_merchant:
-            print("Database already seeded. Skipping...")
-            return
+        print("Cleaning up database...")
+        db.execute(text("TRUNCATE TABLE merchants CASCADE;"))
+        db.commit()
 
         print("Starting database seed...")
 
@@ -98,73 +98,74 @@ def seed_db():
             db.flush()
             customers.append(cust)
 
-        # 5. Customer Events
-        arun = customers[0]
-        events = [
-            CustomerEvent(customer_id=arun.id, event_type="product_view", product_id=products[0].id),
-            CustomerEvent(customer_id=arun.id, event_type="product_view", product_id=products[2].id),
-            CustomerEvent(customer_id=arun.id, event_type="add_to_cart", product_id=products[0].id)
-        ]
-        db.add_all(events)
-        db.flush()
+        # Generate historical orders for last 7 days
+        now = datetime.now()
+        
+        for i in range(7):
+            date_shift = now - timedelta(days=i)
+            # 2 to 5 orders per day
+            num_orders = random.randint(2, 5)
+            for j in range(num_orders):
+                cust = random.choice(customers)
+                is_ai = random.choice([True, False])
+                prod1 = random.choice(products)
+                prod2 = random.choice(products) if random.random() > 0.7 else None
+                
+                # Cart
+                cart = Cart(
+                    customer_id=cust.id,
+                    merchant_id=merchant.id,
+                    status="COMPLETED",
+                    currency="INR",
+                    created_at=date_shift,
+                    updated_at=date_shift
+                )
+                db.add(cart)
+                db.flush()
 
-        # 6. Carts and Orders
-        cart = Cart(
-            customer_id=arun.id,
-            merchant_id=merchant.id,
-            status="CHECKOUT",
-            currency="INR"
-        )
-        db.add(cart)
-        db.flush()
+                # Items
+                total = prod1.price
+                items = [CartItem(cart_id=cart.id, product_id=prod1.id, quantity=1, unit_price=prod1.price, created_at=date_shift)]
+                if prod2:
+                    total += prod2.price
+                    items.append(CartItem(cart_id=cart.id, product_id=prod2.id, quantity=1, unit_price=prod2.price, created_at=date_shift))
+                db.add_all(items)
 
-        cart_item = CartItem(
-            cart_id=cart.id,
-            product_id=products[0].id,
-            quantity=1,
-            unit_price=products[0].price
-        )
-        db.add(cart_item)
-        db.flush()
+                # Order
+                order_num = f"ORD-{date_shift.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+                order = Order(
+                    merchant_id=merchant.id,
+                    customer_id=cust.id,
+                    cart_id=cart.id,
+                    order_number=order_num,
+                    status="PAID",
+                    source="AI" if is_ai else "DIRECT",
+                    currency="INR",
+                    subtotal=total,
+                    discount=Decimal('0.00'),
+                    total=total,
+                    created_at=date_shift,
+                    updated_at=date_shift
+                )
+                db.add(order)
+                db.flush()
 
-        order = Order(
-            merchant_id=merchant.id,
-            customer_id=arun.id,
-            cart_id=cart.id,
-            order_number="ORD-2026-000001",
-            status="PENDING",
-            currency="INR",
-            subtotal=products[0].price,
-            discount=Decimal('0.00'),
-            total=products[0].price
-        )
-        db.add(order)
-        db.flush()
-
-        # 7. Agent Decisions (Demo)
-        decision = AgentDecision(
-            customer_id=arun.id,
-            merchant_id=merchant.id,
-            session_id=str(uuid.uuid4()),
-            intent="purchase_mouse",
-            primary_product_id=products[0].id,
-            intervention_type="CROSS_SELL",
-            recommended_product_id=products[2].id,
-            reason="Customer looking at mouse, suggest mousepad",
-            expected_order_value=products[0].price + products[2].price
-        )
-        db.add(decision)
-
-        # 8. Audit Logs
-        audit = AuditLog(
-            merchant_id=merchant.id,
-            customer_id=arun.id,
-            order_id=order.id,
-            event_type="ORDER_CREATED",
-            actor_type="CUSTOMER",
-            action="Placed an order"
-        )
-        db.add(audit)
+                # Agent Decision (if AI)
+                if is_ai and prod2:
+                    decision = AgentDecision(
+                        customer_id=cust.id,
+                        merchant_id=merchant.id,
+                        session_id=str(uuid.uuid4()),
+                        intent=f"purchase_{prod1.category.lower()}",
+                        primary_product_id=prod1.id,
+                        intervention_type="CROSS_SELL",
+                        recommended_product_id=prod2.id,
+                        reason=f"Customer looking at {prod1.name}, suggest {prod2.name}",
+                        expected_order_value=total,
+                        created_at=date_shift,
+                        updated_at=date_shift
+                    )
+                    db.add(decision)
 
         db.commit()
         print("Database seeded successfully!")
