@@ -6,3 +6,4 @@ from app.models.customer import Customer, CustomerEvent
 from app.models.order import Cart, CartItem, Order, Payment
 from app.models.agent import AgentDecision
 from app.models.audit import AuditLog
+from app.models.consent import ConsentRequest

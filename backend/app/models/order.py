@@ -9,6 +9,7 @@ class Cart(BaseModel):
     merchant_id = Column(ForeignKey("merchants.id"), nullable=False, index=True)
     status = Column(String, default="ACTIVE", nullable=False) # ACTIVE, CHECKOUT, COMPLETED, ABANDONED
     currency = Column(String, default="INR", nullable=False)
+    discount = Column(Numeric(10, 2), default=0)
 
     customer = relationship("Customer", back_populates="carts")
     merchant = relationship("Merchant", viewonly=True) # Merchant relationship mostly via customer, but keep a link
