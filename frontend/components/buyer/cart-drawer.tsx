@@ -74,6 +74,8 @@ type CartDrawerProps = {
   onUpdateQuantity: (itemId: string, quantity: number) => void;
   onRemove: (itemId: string) => void;
   isLoading: boolean;
+  policyDecision?: any;
+  onInitiatePurchase?: () => void;
 };
 
 export function CartDrawer({
@@ -82,7 +84,9 @@ export function CartDrawer({
   cart,
   onUpdateQuantity,
   onRemove,
-  isLoading
+  isLoading,
+  policyDecision,
+  onInitiatePurchase
 }: CartDrawerProps) {
   if (!isOpen) return null;
 
@@ -150,12 +154,58 @@ export function CartDrawer({
             <div className="flex items-center justify-between">
               <span className="text-gray-600 font-medium">Subtotal</span>
               <span className="text-xl font-bold text-gray-900">
-                {formatPrice(cart.subtotal)}
+                {formatPrice(cart.subtotal || 0)}
               </span>
             </div>
-            <button className="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-sm shadow-indigo-200 transition-colors flex items-center justify-center">
-              Continue to Checkout
-            </button>
+            
+            {policyDecision && policyDecision.decision === 'ALLOWED' && (
+              <div className="p-3 bg-green-50 border border-green-100 rounded-lg text-green-700 text-sm font-medium flex items-center gap-2">
+                ✓ Purchase can proceed
+              </div>
+            )}
+            
+            {policyDecision && policyDecision.decision === 'REQUIRES_CONSENT' && (
+              <div className="p-4 bg-orange-50 border border-orange-100 rounded-lg text-orange-800 text-sm">
+                <p className="font-bold mb-2">Customer approval required</p>
+                <p className="mb-2">Your cart total is {formatPrice(cart.subtotal || 0)}.</p>
+                {policyDecision.reasons?.map((r: any, idx: number) => (
+                  <p key={idx} className="mb-1 text-orange-700">{r.message}</p>
+                ))}
+              </div>
+            )}
+            
+            {policyDecision && policyDecision.decision === 'REJECTED' && (
+              <div className="p-4 bg-red-50 border border-red-100 rounded-lg text-red-800 text-sm">
+                <p className="font-bold mb-2">Purchase cannot proceed</p>
+                <p className="font-semibold mt-2 mb-1">Reason:</p>
+                {policyDecision.reasons?.map((r: any, idx: number) => (
+                  <p key={idx} className="mb-1 text-red-700">- {r.message}</p>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2 pt-2">
+                {policyDecision?.decision === 'REJECTED' ? (
+                     <button disabled className="w-full py-3.5 px-4 bg-gray-300 text-gray-500 font-medium rounded-xl flex items-center justify-center cursor-not-allowed">
+                        Cannot Proceed
+                     </button>
+                ) : (
+                    <button 
+                      onClick={onInitiatePurchase}
+                      className="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-sm shadow-indigo-200 transition-colors flex items-center justify-center"
+                    >
+                      {policyDecision?.decision === 'REQUIRES_CONSENT' ? 'Confirm Purchase' : 'Purchase'}
+                    </button>
+                )}
+                {policyDecision?.decision === 'REQUIRES_CONSENT' && (
+                    <button 
+                      onClick={onClose}
+                      className="w-full py-3.5 px-4 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium rounded-xl transition-colors flex items-center justify-center"
+                    >
+                      Review Cart
+                    </button>
+                )}
+            </div>
           </div>
         )}
       </div>

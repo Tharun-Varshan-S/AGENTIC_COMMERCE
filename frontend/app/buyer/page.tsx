@@ -10,7 +10,11 @@ import {
   updateCartItem, 
   removeCartItem,
   fetchMerchants,
-  executeTool
+  executeTool,
+  evaluatePolicy,
+  requestConsent,
+  approveConsent,
+  declineConsent
 } from "@/lib/api";
 import { BuyerHeader } from "@/components/buyer/buyer-header";
 import { AiChat, Message } from "@/components/buyer/ai-chat";
@@ -36,6 +40,12 @@ export default function BuyerPage() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCartLoading, setIsCartLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Policy & Consent State
+  const [policyDecision, setPolicyDecision] = useState<any>(null);
+  const [consentRequest, setConsentRequest] = useState<any>(null);
+  const [isConsentModalOpen, setIsConsentModalOpen] = useState(false);
+  const [isProcessingConsent, setIsProcessingConsent] = useState(false);
 
   // Initialize
   useEffect(() => {
@@ -68,12 +78,41 @@ export default function BuyerPage() {
         }
         setCart(activeCart);
         setRecommendation(null);
+        if (activeCart && activeCart.items && activeCart.items.length > 0) {
+            checkPolicy(merchantId, selectedCustomerId, activeCart.id);
+        } else {
+            setPolicyDecision(null);
+        }
       } catch (err) {
         console.error(err);
       }
     }
     loadCustomerData();
   }, [selectedCustomerId, merchantId]);
+
+  const checkPolicy = async (mId: string, cId: string, cartId: string) => {
+    try {
+      const decision = await evaluatePolicy(mId, cId, cartId);
+      setPolicyDecision(decision);
+    } catch (err) {
+      console.error("Failed to evaluate policy", err);
+    }
+  };
+
+  const reloadCart = async () => {
+    if (!selectedCustomerId) return;
+    try {
+      const activeCart = await fetchActiveCart(selectedCustomerId);
+      setCart(activeCart);
+      if (activeCart && activeCart.items && activeCart.items.length > 0) {
+        checkPolicy(merchantId, selectedCustomerId, activeCart.id);
+      } else {
+        setPolicyDecision(null);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   // Deterministic search parser
   const handleSendMessage = async (text: string) => {
@@ -175,41 +214,90 @@ export default function BuyerPage() {
       alert("Please select a customer first.");
       return;
     }
-    
-    setIsCartLoading(true);
     try {
-      const updatedCart = await addCartItem(cart.id, product.id, 1);
-      setCart(updatedCart);
-      setIsCartOpen(true);
+      await addCartItem(cart.id, product.id, 1);
+      await reloadCart();
     } catch (err: any) {
-      alert(err.message || "Failed to add to cart");
-    } finally {
-      setIsCartLoading(false);
+      setError(err.message);
     }
   };
 
-  const handleUpdateQuantity = async (itemId: string, quantity: number) => {
-    setIsCartLoading(true);
+  const handleUpdateCartItem = async (itemId: string, quantity: number) => {
+    if (!cart) return;
     try {
-      const updatedCart = await updateCartItem(cart.id, itemId, quantity);
-      setCart(updatedCart);
+      await updateCartItem(cart.id, itemId, quantity);
+      await reloadCart();
     } catch (err: any) {
-      alert(err.message || "Failed to update quantity");
-    } finally {
-      setIsCartLoading(false);
+      setError(err.message);
     }
   };
 
-  const handleRemoveItem = async (itemId: string) => {
-    setIsCartLoading(true);
+  const handleRemoveCartItem = async (itemId: string) => {
+    if (!cart) return;
     try {
-      const updatedCart = await removeCartItem(cart.id, itemId);
-      setCart(updatedCart);
+      await removeCartItem(cart.id, itemId);
+      await reloadCart();
     } catch (err: any) {
-      alert(err.message || "Failed to remove item");
-    } finally {
-      setIsCartLoading(false);
+      setError(err.message);
     }
+  };
+
+  const handleInitiatePurchase = async () => {
+    if (!cart) return;
+    if (policyDecision?.decision === 'ALLOWED') {
+       alert("Purchase successful! (Simulated)");
+       return;
+    }
+    if (policyDecision?.decision === 'REQUIRES_CONSENT') {
+       try {
+           setIsProcessingConsent(true);
+           const res = await requestConsent(merchantId, selectedCustomerId, cart.id);
+           setConsentRequest(res);
+           setIsConsentModalOpen(true);
+       } catch (err: any) {
+           setError("Failed to request consent");
+       } finally {
+           setIsProcessingConsent(false);
+       }
+    }
+  };
+  
+  const handleApproveConsent = async () => {
+      if (!consentRequest?.consent_id) return;
+      try {
+          setIsProcessingConsent(true);
+          const res = await approveConsent(consentRequest.consent_id);
+          if (res.status === 'APPROVED') {
+              alert("Consent Approved! Purchase successful!");
+              setIsConsentModalOpen(false);
+              setConsentRequest(null);
+              // Clean cart or just reload
+              await reloadCart();
+          } else {
+              setError(res.message || "Failed to approve");
+          }
+      } catch (err: any) {
+          setError(err.message);
+      } finally {
+          setIsProcessingConsent(false);
+      }
+  };
+  
+  const handleDeclineConsent = async () => {
+      if (!consentRequest?.consent_id) {
+          setIsConsentModalOpen(false);
+          return;
+      }
+      try {
+          setIsProcessingConsent(true);
+          await declineConsent(consentRequest.consent_id);
+          setIsConsentModalOpen(false);
+          setConsentRequest(null);
+      } catch (err: any) {
+          setError(err.message);
+      } finally {
+          setIsProcessingConsent(false);
+      }
   };
 
   return (
@@ -268,10 +356,63 @@ export default function BuyerPage() {
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
         cart={cart}
-        onUpdateQuantity={handleUpdateQuantity}
-        onRemove={handleRemoveItem}
+        onUpdateQuantity={handleUpdateCartItem}
+        onRemove={handleRemoveCartItem}
         isLoading={isCartLoading}
+        policyDecision={policyDecision}
+        onInitiatePurchase={handleInitiatePurchase}
       />
+
+      {isConsentModalOpen && consentRequest && (
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h3 className="text-xl font-bold text-gray-900">Review Purchase</h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
+                {cart?.items?.map((item: any) => (
+                  <div key={item.id} className="flex justify-between items-center text-sm">
+                    <span className="text-gray-700 font-medium">{item.product?.name} x{item.quantity}</span>
+                    <span className="text-gray-900 font-semibold">₹{(item.unit_price * item.quantity).toFixed(0)}</span>
+                  </div>
+                ))}
+                <div className="border-t border-gray-200 pt-3 flex justify-between items-center">
+                  <span className="font-bold text-gray-900">Total</span>
+                  <span className="text-lg font-bold text-indigo-700">₹{cart?.subtotal?.toFixed(0)}</span>
+                </div>
+              </div>
+              
+              <div className="p-4 bg-orange-50 rounded-xl border border-orange-100 text-orange-800 text-sm">
+                <p className="font-bold mb-1">Merchant approval:</p>
+                {consentRequest.reasons?.map((r: any, idx: number) => (
+                   <p key={idx}>{r.message}</p>
+                ))}
+                {!consentRequest.reasons?.length && <p>Required above ₹3,000</p>}
+              </div>
+            </div>
+            
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3">
+              <button
+                onClick={handleDeclineConsent}
+                disabled={isProcessingConsent}
+                className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium rounded-lg transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleApproveConsent}
+                disabled={isProcessingConsent}
+                className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm shadow-indigo-200 transition-colors disabled:opacity-50 flex items-center justify-center"
+              >
+                {isProcessingConsent ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : "Approve Purchase"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
