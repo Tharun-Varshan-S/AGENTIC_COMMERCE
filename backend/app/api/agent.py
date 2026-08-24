@@ -9,6 +9,9 @@ from app.models.agent import AgentDecision
 from app.schemas.agent import AgentDecisionResponse
 from app.services.core import CoreService
 
+from app.agent.schemas import ChatRequest, ChatResponse
+from app.agent.service import get_agent_response
+
 router = APIRouter()
 
 def get_core_service(db: Session = Depends(get_db)) -> CoreService:
@@ -39,3 +42,13 @@ def get_agent_decisions(
         results.append(resp)
         
     return results
+
+@router.post("/chat", response_model=ChatResponse)
+def chat_with_agent(
+    request: ChatRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Interact with the autonomous AI Commerce Agent.
+    """
+    return get_agent_response(request, db)

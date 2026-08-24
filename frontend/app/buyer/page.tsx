@@ -14,7 +14,8 @@ import {
   evaluatePolicy,
   requestConsent,
   approveConsent,
-  declineConsent
+  declineConsent,
+  chatWithAgent
 } from "@/lib/api";
 import { BuyerHeader } from "@/components/buyer/buyer-header";
 import { AiChat, Message } from "@/components/buyer/ai-chat";
@@ -28,6 +29,7 @@ export default function BuyerPage() {
   const [merchantId, setMerchantId] = useState<string>("");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [cart, setCart] = useState<any>(null);
+  const [sessionId] = useState<string>(() => Date.now().toString());
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -114,7 +116,6 @@ export default function BuyerPage() {
     }
   };
 
-  // Deterministic search parser
   const handleSendMessage = async (text: string) => {
     const newMessage: Message = { id: Date.now().toString(), sender: "USER", text };
     setMessages(prev => [...prev, newMessage]);
@@ -123,85 +124,39 @@ export default function BuyerPage() {
     setError(null);
 
     try {
-      // Very simple deterministic parser
-      const lowerText = text.toLowerCase();
-      let search = "";
-      let maxPrice: number | undefined;
-      let category = "";
-
-      if (lowerText.includes("mouse")) search = "mouse";
-      if (lowerText.includes("keyboard")) search = "keyboard";
-      if (lowerText.includes("headset")) search = "headset";
-      if (lowerText.includes("monitor")) search = "monitor";
-
-      const priceMatch = lowerText.match(/under\s*(?:rs\.?|₹)?\s*(\d+)/i);
-      if (priceMatch && priceMatch[1]) {
-        maxPrice = parseInt(priceMatch[1], 10);
-      }
-
-      if (lowerText.includes("gaming")) {
-        category = "Gaming";
-      } else if (lowerText.includes("audio")) {
-        category = "Audio";
-      } else if (lowerText.includes("accessories")) {
-        category = "Accessories";
-      }
-
-      const toolResult = await executeTool("search_catalog", {
-        merchant_id: merchantId,
-        query: search || undefined,
-        category: category || undefined,
-        max_price: maxPrice
-      });
+      const response = await chatWithAgent(sessionId, merchantId, selectedCustomerId, text);
       
-      const results = toolResult.result?.products || [];
-      setProducts(results);
-
-      let aiResponseText = "";
-      if (results.length > 0) {
-        aiResponseText = `I found ${results.length} product(s) matching your requirements.`;
-        if (maxPrice) {
-          aiResponseText = `I found ${results.length} option(s) under ₹${maxPrice}.`;
-        }
-        aiResponseText += `\n\nI've displayed them for you to review. Let me know if you want to refine this search.`;
-
-        // Fetch Revenue Recommendation based on the first product
-        try {
-          const primaryProduct = results[0];
-          const recResult = await executeTool("get_revenue_recommendation", {
-            merchant_id: merchantId,
-            customer_id: selectedCustomerId,
-            primary_product_id: primaryProduct.id,
-            customer_intent: text,
-            customer_budget: maxPrice || null
-          });
-          
-          if (recResult.result && recResult.result.intervention !== "NONE") {
-            setRecommendation(recResult.result);
-          } else {
-            setRecommendation(null);
-          }
-        } catch (recErr) {
-          console.error("Failed to get recommendation", recErr);
-          setRecommendation(null);
-        }
-
-      } else {
-        aiResponseText = `I couldn't find any products matching that exactly. Try changing your budget or search terms.`;
+      // Update UI state from structured agent response
+      if (response.products) {
+        setProducts(response.products);
+      }
+      
+      if (response.recommendation) {
+        setRecommendation(response.recommendation);
+      } else if (response.products && response.products.length === 0) {
         setRecommendation(null);
       }
-
+      
+      if (response.cart) {
+        setCart(response.cart);
+      }
+      
+      if (response.policy) {
+        setPolicyDecision(response.policy);
+      }
+      
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         sender: "AI ASSISTANT",
-        text: aiResponseText
+        text: response.message,
+        toolCalls: response.tool_calls
       }]);
 
     } catch (err) {
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         sender: "AI ASSISTANT",
-        text: "I'm having trouble connecting to the product catalog right now. Please try again."
+        text: "I'm having trouble connecting to the AI assistant right now. Please try again."
       }]);
     } finally {
       setIsChatLoading(false);

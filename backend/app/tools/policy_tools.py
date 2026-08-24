@@ -18,21 +18,16 @@ class ValidatePolicyTool(CommerceTool):
     )
     input_schema: Type[BaseModel] = ValidatePolicyInput
 
-    def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        req = PolicyEvaluationRequest(**params)
-        db = SessionLocal()
-        try:
-            service = PolicyService(db)
-            decision: PolicyDecision = service.evaluate(req)
-            
-            reasons = [{"code": r.code, "message": r.message} for r in decision.reasons]
-            
-            return {
-                "decision": decision.decision,
-                "requires_consent": decision.requires_consent,
-                "reasons": reasons
-            }
-        except Exception as e:
-            return {"error": str(e)}
-        finally:
-            db.close()
+    def execute(self, db_session, **kwargs) -> Dict[str, Any]:
+        req = PolicyEvaluationRequest(**kwargs)
+        db = db_session
+        service = PolicyService(db)
+        decision: PolicyDecision = service.evaluate(req)
+        
+        reasons = [{"code": r.code, "message": r.message} for r in decision.reasons]
+        
+        return {
+            "decision": decision.decision,
+            "requires_consent": decision.requires_consent,
+            "reasons": reasons
+        }

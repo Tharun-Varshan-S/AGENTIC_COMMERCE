@@ -7,3 +7,7 @@ alembic
 pytest
 httpx
 ruff
+langchain
+langchain-core
+langchain-google-genai
+langgraph

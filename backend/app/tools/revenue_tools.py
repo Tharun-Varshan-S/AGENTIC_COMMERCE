@@ -16,15 +16,9 @@ class GetRevenueRecommendationTool(CommerceTool):
     )
     input_schema: Type[BaseModel] = GetRevenueRecommendationInput
 
-    def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        req = RevenueRecommendationRequest(**params)
-        
-        db: Session = SessionLocal()
-        try:
-            engine = RevenueEngine(db)
-            response = engine.recommend(req)
-            return response.model_dump(mode='json')
-        except Exception as e:
-            return {"error": str(e)}
-        finally:
-            db.close()
+    def execute(self, db_session, **kwargs) -> Dict[str, Any]:
+        req = RevenueRecommendationRequest(**kwargs)
+        db: Session = db_session
+        engine = RevenueEngine(db)
+        response = engine.recommend(req)
+        return response.model_dump(mode='json')

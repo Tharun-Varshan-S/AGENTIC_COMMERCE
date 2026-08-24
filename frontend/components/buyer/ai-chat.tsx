@@ -7,6 +7,7 @@ export type Message = {
   id: string;
   sender: "USER" | "AI ASSISTANT";
   text: string;
+  toolCalls?: { tool: string; reason: string }[];
 };
 
 type AiChatProps = {
@@ -60,9 +61,26 @@ export function AiChat({ messages, onSendMessage, isLoading }: AiChatProps) {
                     {msg.sender}
                   </span>
                 </div>
-                <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                  {msg.text}
-                </p>
+                
+                {msg.toolCalls && msg.toolCalls.length > 0 && (
+                  <div className="mb-3 space-y-2">
+                    {msg.toolCalls.map((tc, idx) => (
+                      <div key={idx} className="bg-gray-50 border border-gray-100 rounded p-2 text-xs text-gray-600">
+                        <div className="flex items-center gap-1.5 font-medium mb-0.5 text-indigo-700">
+                          <Bot className="w-3 h-3" />
+                          <span>{tc.tool}</span>
+                        </div>
+                        <p className="italic opacity-80">{tc.reason}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {msg.text && (
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                    {msg.text}
+                  </p>
+                )}
               </div>
             </div>
           ))
