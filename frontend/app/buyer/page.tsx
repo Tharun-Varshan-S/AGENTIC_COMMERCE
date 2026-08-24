@@ -10,7 +10,8 @@ import {
   updateCartItem, 
   removeCartItem,
   fetchAgentDecisions,
-  fetchMerchants
+  fetchMerchants,
+  executeTool
 } from "@/lib/api";
 import { BuyerHeader } from "@/components/buyer/buyer-header";
 import { AiChat, Message } from "@/components/buyer/ai-chat";
@@ -114,7 +115,14 @@ export default function BuyerPage() {
         category = "Accessories";
       }
 
-      const results = await fetchProducts(search, category, maxPrice);
+      const toolResult = await executeTool("search_catalog", {
+        merchant_id: merchantId,
+        query: search || undefined,
+        category: category || undefined,
+        max_price: maxPrice
+      });
+      
+      const results = toolResult.result?.products || [];
       setProducts(results);
 
       let aiResponseText = "";
