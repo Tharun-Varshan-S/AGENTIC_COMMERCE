@@ -1,0 +1,8 @@
+fastapi[standard]
+pydantic
+pydantic-settings
+sqlalchemy
+psycopg2-binary
+pytest
+httpx
+ruff
