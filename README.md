@@ -1,43 +1,112 @@
-# AI-Native Merchant Commerce Platform for Razorpay (Track 01)
+# 🚀 Agentic Commerce Platform
 
-## Project Purpose
-"Grow the merchant's revenue, and make them sellable to AI buyers."
-This is a production-style MVP built for the Razorpay hackathon. It serves as a foundational monorepo combining a modern Next.js frontend with a robust FastAPI backend and PostgreSQL database.
+> An AI-Native Merchant Commerce Platform built for the Razorpay Hackathon (Track 01).
+> **Goal:** "Grow the merchant's revenue, and make them sellable to AI buyers."
 
-## Architecture
-- **Frontend:** Next.js (App Router), TypeScript, Tailwind CSS, shadcn/ui, Recharts.
-- **Backend:** FastAPI, Python, Pydantic, SQLAlchemy, PostgreSQL.
-- **Database:** PostgreSQL.
+---
 
-## Frontend Setup
-1. Navigate to the `frontend` directory: `cd frontend`
-2. Install dependencies: `npm install`
-3. Run development server: `npm run dev`
+## 📖 Overview
 
-## Backend Setup
-1. Navigate to the `backend` directory: `cd backend`
-2. Create a virtual environment (optional but recommended): `python -m venv venv`
-3. Activate the virtual environment:
-   - Linux/Mac: `source venv/bin/activate`
-   - Windows: `.\venv\Scripts\activate`
-4. Install dependencies: `pip install -r requirements.txt`
-5. Run the server: `fastapi dev app/main.py` (or `uvicorn app.main:app --reload`)
-6. Run tests: `pytest`
+Welcome to the **Agentic Commerce Platform** MVP! This project provides a foundational monorepo that connects a modern Next.js frontend to a robust FastAPI backend. It is designed to eventually integrate an intelligent LLM agent orchestrating commerce tasks via explicit tools (e.g., catalog search, cart management, policy checks, and Razorpay order creation).
 
-## PostgreSQL Setup (Docker)
-1. Run `docker-compose up -d` in the root directory.
-2. The database will be exposed on port `5432`.
+---
 
-## Environment Variables
-Copy `.env.example` to `.env` in the root directory (or respective frontend/backend directories based on your deployment strategy) and configure the variables.
+## 🏗 Architecture
 
-- `NEXT_PUBLIC_API_URL`: Points the frontend to the backend API.
-- `DATABASE_URL`: PostgreSQL connection string.
-- `RAZORPAY_*`: Razorpay integration keys.
-- `LLM_API_KEY`: API key for the AI agent (future implementation).
+The platform uses a clean, decoupled architecture:
+- **Frontend**: Next.js 15 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui, Recharts
+- **Backend**: FastAPI (Python), Pydantic, SQLAlchemy
+- **Database**: PostgreSQL
+- **Infrastructure**: Docker Compose (for DB isolation)
 
-## Running Locally
-To start everything locally:
-1. Start PostgreSQL: `docker-compose up -d`
-2. Start backend API: `cd backend && fastapi run app/main.py`
-3. Start frontend App: `cd frontend && npm run dev`
+---
+
+## ⚙️ Prerequisites
+
+Before you begin, ensure you have the following installed:
+- [Node.js](https://nodejs.org/) (v18+ recommended)
+- [Python](https://www.python.org/) (3.10+ recommended)
+- [Docker](https://www.docker.com/) & Docker Compose
+- Git
+
+---
+
+## 🛠️ Quick Start (Developer Setup)
+
+Follow these steps to get both the frontend and backend running locally.
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Tharun-Varshan-S/AGENTIC_COMMERCE.git
+cd AGENTIC_COMMERCE
+```
+
+### 2. Set Up Environment Variables
+Copy the example environment variables file and configure your secrets:
+```bash
+cp .env.example .env
+```
+*(You will need to set `DATABASE_URL`, Razorpay keys, and `LLM_API_KEY` for later phases).*
+
+### 3. Start the PostgreSQL Database
+We use Docker to quickly spin up an isolated database instance.
+```bash
+docker-compose up -d
+```
+> The database will run on `localhost:5432`.
+
+### 4. Start the FastAPI Backend
+Open a terminal and navigate to the backend directory:
+```bash
+cd backend
+
+# Create and activate a virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows use: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the backend development server
+fastapi dev app/main.py
+```
+> **API Docs**: Available at [http://localhost:8000/docs](http://localhost:8000/docs)
+> **Health Check**: Available at [http://localhost:8000/api/health](http://localhost:8000/api/health)
+
+### 5. Start the Next.js Frontend
+Open a **new** terminal and navigate to the frontend directory:
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Run the frontend development server
+npm run dev
+```
+> **Web UI**: Available at [http://localhost:3000](http://localhost:3000)
+
+---
+
+## 🧪 Testing
+
+To ensure the backend is functioning correctly, you can run the test suite:
+```bash
+cd backend
+source venv/bin/activate  # Ensure venv is active
+pytest
+```
+
+---
+
+## 🔮 Future Roadmap (Phase 2 & Beyond)
+- **AI Agent Integration:** Connect LLM to explicit Python commerce tools.
+- **Razorpay Integration:** Implement checkout flows and webhooks.
+- **Revenue & Policy Engines:** Add business logic gates for LLM actions.
+- **Consent Gate:** Require user consent for major purchase actions.
+
+---
+
+<div align="center">
+  <i>Built with ❤️ for the Razorpay Hackathon</i>
+</div>
