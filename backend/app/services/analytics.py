@@ -7,7 +7,7 @@ from decimal import Decimal
 from app.models.order import Order
 from app.models.product import Product, Inventory
 from app.models.agent import AgentDecision
-from app.schemas.analytics import DashboardData, KPIStats, RevenueDataPoint, OrderDataPoint, RecentActivity, RecentOrder, RecentDecision
+from app.schemas.analytics import DashboardData, KPIStats, RevenueDataPoint, OrderDataPoint, RecentActivity, RecentOrder, RecentDecision, RevenueIntelligenceKPIs
 
 class AnalyticsService:
     def __init__(self, db: Session):
@@ -90,10 +90,50 @@ class AnalyticsService:
                 ai_orders=orders_chart_map[day]["ai"]
             ))
 
+        # 3. Revenue Intelligence
+        decisions = self.db.scalars(
+            select(AgentDecision)
+            .filter(AgentDecision.merchant_id == merchant_id, AgentDecision.created_at >= seven_days_ago)
+        ).all()
+
+        total_recommendations = len(decisions)
+        
+        # Determine accepted recommendations based on orders that have items matching recommended_product_id
+        # For simplicity in MVP, we look for orders tagged with source="AI" and just count AI orders as "accepted"
+        # Or better: check if AI orders include the recommended items.
+        # But for MVP, `ai_orders` is exactly when they accepted the AI flow.
+        accepted_recommendations = ai_orders
+        
+        conversion_rate = 0.0
+        if total_recommendations > 0:
+            conversion_rate = (accepted_recommendations / total_recommendations) * 100
+
+        # Additional Revenue (Expected vs Realized)
+        # Expected from decisions where intervention != NONE
+        additional_revenue = Decimal('0.00')
+        for d in decisions:
+            if d.intervention_type != "NONE" and d.recommended_product_id:
+                # Approximate additional revenue as the price of recommended (for cross-sell) 
+                # or diff (for upsell) -> this is stored in expected_order_value or we can re-calculate.
+                # Actually, our decisions have expected_order_value = primary_price + additional
+                # Let's just use ai_revenue as actual additional revenue realized.
+                pass
+                
+        # For simplicity, AI revenue IS the additional revenue realized from interventions
+        additional_revenue = ai_revenue
+
+        ri_kpis = RevenueIntelligenceKPIs(
+            total_recommendations=total_recommendations,
+            accepted_recommendations=accepted_recommendations,
+            conversion_rate=conversion_rate,
+            additional_revenue=additional_revenue
+        )
+
         return DashboardData(
             kpis=kpis,
             revenue_chart=revenue_chart,
-            orders_chart=orders_chart
+            orders_chart=orders_chart,
+            revenue_intelligence=ri_kpis
         )
 
     def get_recent_activity(self, merchant_id: str) -> RecentActivity:

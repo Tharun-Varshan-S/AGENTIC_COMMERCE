@@ -1,4 +1,5 @@
 from sqlalchemy import Column, String, ForeignKey, Numeric
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from app.db.base_class import BaseModel
 
@@ -14,6 +15,8 @@ class AgentDecision(BaseModel):
     recommended_product_id = Column(ForeignKey("products.id"), index=True)
     reason = Column(String)
     expected_order_value = Column(Numeric(10, 2))
+    score = Column(Numeric(5, 4))
+    scoring_details = Column(JSONB)
 
     customer = relationship("Customer", back_populates="agent_decisions")
     merchant = relationship("Merchant", back_populates="agent_decisions")

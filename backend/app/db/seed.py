@@ -62,6 +62,7 @@ def seed_db():
                 name=pdata["name"],
                 category=pdata["category"],
                 price=pdata["price"],
+                cost_price=pdata["price"] * Decimal('0.60'), # 40% margin
                 currency="INR",
                 is_active=True
             )

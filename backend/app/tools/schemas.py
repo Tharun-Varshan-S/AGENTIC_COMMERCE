@@ -41,3 +41,11 @@ class GetRecommendationsInput(BaseModel):
 class ValidateCartInput(BaseModel):
     merchant_id: UUID
     customer_id: UUID
+
+# Tool 8: get_revenue_recommendation
+class GetRevenueRecommendationInput(BaseModel):
+    merchant_id: UUID
+    customer_id: UUID
+    primary_product_id: UUID
+    customer_intent: str
+    customer_budget: Optional[Decimal] = None

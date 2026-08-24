@@ -21,10 +21,17 @@ class OrderDataPoint(BaseModel):
     direct_orders: int
     ai_orders: int
 
+class RevenueIntelligenceKPIs(BaseModel):
+    total_recommendations: int
+    accepted_recommendations: int
+    conversion_rate: float
+    additional_revenue: Decimal
+
 class DashboardData(BaseModel):
     kpis: KPIStats
     revenue_chart: List[RevenueDataPoint]
     orders_chart: List[OrderDataPoint]
+    revenue_intelligence: RevenueIntelligenceKPIs
 
 class RecentOrder(BaseModel):
     order_number: str

@@ -9,7 +9,6 @@ import {
   addCartItem, 
   updateCartItem, 
   removeCartItem,
-  fetchAgentDecisions,
   fetchMerchants,
   executeTool
 } from "@/lib/api";
@@ -68,13 +67,7 @@ export default function BuyerPage() {
           activeCart = await createCart(selectedCustomerId, merchantId);
         }
         setCart(activeCart);
-
-        const decisions = await fetchAgentDecisions(selectedCustomerId);
-        if (decisions && decisions.length > 0) {
-          setRecommendation(decisions[0]);
-        } else {
-          setRecommendation(null);
-        }
+        setRecommendation(null);
       } catch (err) {
         console.error(err);
       }
@@ -132,8 +125,31 @@ export default function BuyerPage() {
           aiResponseText = `I found ${results.length} option(s) under ₹${maxPrice}.`;
         }
         aiResponseText += `\n\nI've displayed them for you to review. Let me know if you want to refine this search.`;
+
+        // Fetch Revenue Recommendation based on the first product
+        try {
+          const primaryProduct = results[0];
+          const recResult = await executeTool("get_revenue_recommendation", {
+            merchant_id: merchantId,
+            customer_id: selectedCustomerId,
+            primary_product_id: primaryProduct.id,
+            customer_intent: text,
+            customer_budget: maxPrice || null
+          });
+          
+          if (recResult.result && recResult.result.intervention !== "NONE") {
+            setRecommendation(recResult.result);
+          } else {
+            setRecommendation(null);
+          }
+        } catch (recErr) {
+          console.error("Failed to get recommendation", recErr);
+          setRecommendation(null);
+        }
+
       } else {
         aiResponseText = `I couldn't find any products matching that exactly. Try changing your budget or search terms.`;
+        setRecommendation(null);
       }
 
       setMessages(prev => [...prev, {
