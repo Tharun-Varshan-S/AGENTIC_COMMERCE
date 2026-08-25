@@ -1,113 +1,64 @@
-# 🚀 Agentic Commerce Platform
+# AI-Native Merchant Commerce Platform
 
-> An AI-Native Merchant Commerce Platform built for the Razorpay Hackathon (Track 01).
-> **Goal:** "Grow the merchant's revenue, and make them sellable to AI buyers."
+An autonomous agent-driven commerce platform demonstrating the next evolution of e-commerce.
 
----
+## Architecture
 
-## 📖 Overview
+* **Frontend:** Next.js 14 (App Router), Tailwind CSS, Lucide Icons, Recharts.
+* **Backend:** FastAPI, PostgreSQL, LangChain, LangGraph.
+* **Agent:** LangGraph StateGraph controlling deterministic execution flows.
+* **Database:** PostgreSQL (with SQLAlchemy).
+* **Payments:** Razorpay integration for checkout.
 
-Welcome to the **Agentic Commerce Platform** MVP! This project provides a foundational monorepo that connects a modern Next.js frontend to a robust FastAPI backend. It is designed to eventually integrate an intelligent LLM agent orchestrating commerce tasks via explicit tools (e.g., catalog search, cart management, policy checks, and Razorpay order creation).
+## Key Features
 
----
+- **Agentic Commerce Tool Layer:** A registry of AI tools (Catalog, Inventory, Cart, Policy) accessible to the AI.
+- **Revenue Intelligence Engine:** LLM-based upsell/cross-sell generation with explainable scores.
+- **Policy & Consent Engine:** Validates pricing and cart amounts, requiring merchant consent for bulk orders.
+- **Executive Dashboard:** Analytics on AI vs Direct conversions, funnel dropoffs, and real-time activity feeds.
+- **Full Transaction Traceability:** Complete AI reasoning attribution on every order.
 
-## 🏗 Architecture
+## Running Locally
 
-The platform uses a clean, decoupled architecture:
-- **Frontend**: Next.js 15 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui, Recharts
-- **Backend**: FastAPI (Python), Pydantic, SQLAlchemy
-- **Database**: PostgreSQL
-- **Infrastructure**: Docker Compose (for DB isolation)
+1. **Database Setup**
+Ensure PostgreSQL is running locally on port 5432 with a database named `razorpay_hackathon`.
+You can change the connection string in `backend/.env`.
 
----
-
-## ⚙️ Prerequisites
-
-Before you begin, ensure you have the following installed:
-- [Node.js](https://nodejs.org/) (v18+ recommended)
-- [Python](https://www.python.org/) (3.10+ recommended)
-- [Docker](https://www.docker.com/) & Docker Compose
-- Git
-
----
-
-## 🛠️ Quick Start (Developer Setup)
-
-Follow these steps to get both the frontend and backend running locally.
-
-### 1. Clone the Repository
-```bash
-git clone https://github.com/Tharun-Varshan-S/AGENTIC_COMMERCE.git
-cd AGENTIC_COMMERCE
-```
-
-### 2. Set Up Environment Variables
-Copy the example environment variables file and configure your secrets:
-```bash
-cp .env.example .env
-```
-*(You will need to set `DATABASE_URL`, Razorpay keys, and `LLM_API_KEY` for later phases).*
-
-### 3. Start the PostgreSQL Database
-We use Docker to quickly spin up an isolated database instance.
-```bash
-docker-compose up -d
-```
-> The database will run on `localhost:5432`.
-
-### 4. Start the FastAPI Backend
-Open a terminal and navigate to the backend directory:
+2. **Backend Setup**
 ```bash
 cd backend
-
-# Create and activate a virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows use: venv\Scripts\activate
-
-# Install dependencies
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
-
-# Run the backend development server
-uvicorn app.main:app --reload --port 8000
-
+cp .env.example .env # Add your OpenAI and Razorpay keys
+alembic upgrade head
+python scripts/seed.py
+uvicorn app.main:app --reload
 ```
-> **API Docs**: Available at [http://localhost:8000/docs](http://localhost:8000/docs)
-> **Health Check**: Available at [http://localhost:8000/api/health](http://localhost:8000/api/health)
 
-### 5. Start the Next.js Frontend
-Open a **new** terminal and navigate to the frontend directory:
+3. **Frontend Setup**
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
-
-# Run the frontend development server
 npm run dev
 ```
-> **Web UI**: Available at [http://localhost:3000](http://localhost:3000)
 
----
+## Demo Mode
 
-## 🧪 Testing
+The platform includes a demo mode. From the Merchant Dashboard sidebar, click **Reset Demo Data** to wipe the database and seed realistic high-fidelity scenarios (Accepted Upsell, Policy Rejection, Consent Required) for the activity timeline.
 
-To ensure the backend is functioning correctly, you can run the test suite:
-```bash
-cd backend
-source venv/bin/activate  # Ensure venv is active
-pytest
+## Environment Variables
+
+**Backend (`backend/.env`)**
+```env
+DATABASE_URL=postgresql://user:password@localhost/razorpay_hackathon
+OPENAI_API_KEY=sk-...
+RAZORPAY_KEY_ID=rzp_test_...
+RAZORPAY_KEY_SECRET=...
+DEMO_MODE=true
 ```
 
----
-
-## 🔮 Future Roadmap (Phase 2 & Beyond)
-- **AI Agent Integration:** Connect LLM to explicit Python commerce tools.
-- **Razorpay Integration:** Implement checkout flows and webhooks.
-- **Revenue & Policy Engines:** Add business logic gates for LLM actions.
-- **Consent Gate:** Require user consent for major purchase actions.
-
----
-
-<div align="center">
-  <i>Built with ❤️ for the Razorpay Hackathon</i>
-</div>
+**Frontend (`frontend/.env.local`)**
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000/api
+```

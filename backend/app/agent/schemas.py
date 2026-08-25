@@ -17,6 +17,7 @@ class AgentState(TypedDict):
     cart: Optional[Dict[str, Any]]
     policy: Optional[Dict[str, Any]]
     requires_consent: bool
+    payment_order: Optional[Dict[str, Any]]
 
 class ChatRequest(BaseModel):
     session_id: str = Field(..., description="Unique session ID for the conversation")
@@ -39,3 +40,4 @@ class ChatResponse(BaseModel):
     cart: Optional[Dict[str, Any]] = None
     policy: Optional[Dict[str, Any]] = None
     requires_consent: bool = False
+    payment_order: Optional[Dict[str, Any]] = None

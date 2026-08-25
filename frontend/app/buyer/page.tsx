@@ -1,5 +1,11 @@
 "use client";
 
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
 import { useState, useEffect } from "react";
 import { 
   fetchCustomers, 
@@ -15,7 +21,9 @@ import {
   requestConsent,
   approveConsent,
   declineConsent,
-  chatWithAgent
+  chatWithAgent,
+  createPaymentOrder,
+  verifyPayment
 } from "@/lib/api";
 import { BuyerHeader } from "@/components/buyer/buyer-header";
 import { AiChat, Message } from "@/components/buyer/ai-chat";
@@ -145,6 +153,10 @@ export default function BuyerPage() {
         setPolicyDecision(response.policy);
       }
       
+      if (response.payment_order) {
+        handleRazorpayCheckout(response.payment_order);
+      }
+      
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         sender: "AI ASSISTANT",
@@ -200,15 +212,34 @@ export default function BuyerPage() {
   const handleInitiatePurchase = async () => {
     if (!cart) return;
     if (policyDecision?.decision === 'ALLOWED') {
-       alert("Purchase successful! (Simulated)");
+       try {
+         const orderRes = await createPaymentOrder(merchantId, selectedCustomerId, cart.id);
+         handleRazorpayCheckout(orderRes);
+       } catch (err: any) {
+         setError(err.message);
+       }
        return;
     }
     if (policyDecision?.decision === 'REQUIRES_CONSENT') {
        try {
            setIsProcessingConsent(true);
            const res = await requestConsent(merchantId, selectedCustomerId, cart.id);
-           setConsentRequest(res);
-           setIsConsentModalOpen(true);
+           if (res.status === 'APPROVED') {
+             setIsConsentModalOpen(false);
+             setConsentRequest(null);
+             await reloadCart();
+             
+             // Now proceed with checkout since consent is approved
+             try {
+               const orderRes = await createPaymentOrder(merchantId, selectedCustomerId, cart.id);
+               handleRazorpayCheckout(orderRes);
+             } catch (paymentErr: any) {
+               setError(paymentErr.message);
+             }
+           } else {
+             setConsentRequest(res);
+             setIsConsentModalOpen(true);
+           }
        } catch (err: any) {
            setError("Failed to request consent");
        } finally {
@@ -216,43 +247,71 @@ export default function BuyerPage() {
        }
     }
   };
-  
+
   const handleApproveConsent = async () => {
-      if (!consentRequest?.consent_id) return;
-      try {
-          setIsProcessingConsent(true);
-          const res = await approveConsent(consentRequest.consent_id);
-          if (res.status === 'APPROVED') {
-              alert("Consent Approved! Purchase successful!");
-              setIsConsentModalOpen(false);
-              setConsentRequest(null);
-              // Clean cart or just reload
-              await reloadCart();
-          } else {
-              setError(res.message || "Failed to approve");
-          }
-      } catch (err: any) {
-          setError(err.message);
-      } finally {
-          setIsProcessingConsent(false);
-      }
+    // This assumes the API handles the approval logic
+    // Implementation dependent on backend state flow
+    await handleInitiatePurchase();
   };
   
-  const handleDeclineConsent = async () => {
-      if (!consentRequest?.consent_id) {
-          setIsConsentModalOpen(false);
-          return;
+  const handleDeclineConsent = () => {
+    setIsConsentModalOpen(false);
+    setConsentRequest(null);
+  };
+
+  const handleRazorpayCheckout = (paymentOrder: any) => {
+    if (!window.Razorpay) {
+      setError("Razorpay SDK failed to load. Are you offline?");
+      return;
+    }
+
+    const options = {
+      key: paymentOrder.razorpay_key_id,
+      amount: paymentOrder.amount,
+      currency: paymentOrder.currency,
+      name: "AI-Native Commerce",
+      description: "Purchase Order",
+      order_id: paymentOrder.razorpay_order_id,
+      handler: async function (response: any) {
+        try {
+          const verifyRes = await verifyPayment(
+            paymentOrder.payment_id,
+            response.razorpay_payment_id,
+            response.razorpay_order_id,
+            response.razorpay_signature
+          );
+          
+          if (verifyRes.status === "success") {
+            setMessages(prev => [...prev, {
+              id: Date.now().toString(),
+              sender: "AI ASSISTANT",
+              text: "✅ Payment successful! Your order has been placed."
+            }]);
+            
+            // Clear cart logic here if we wanted to
+            // For now just reload
+            await reloadCart();
+            setIsCartOpen(false);
+          }
+        } catch (err: any) {
+          setError(err.message || "Payment verification failed.");
+        }
+      },
+      prefill: {
+        name: "Customer",
+        email: "customer@example.com",
+        contact: "9999999999"
+      },
+      theme: {
+        color: "#4f46e5" // indigo-600
       }
-      try {
-          setIsProcessingConsent(true);
-          await declineConsent(consentRequest.consent_id);
-          setIsConsentModalOpen(false);
-          setConsentRequest(null);
-      } catch (err: any) {
-          setError(err.message);
-      } finally {
-          setIsProcessingConsent(false);
-      }
+    };
+
+    const rzp1 = new window.Razorpay(options);
+    rzp1.on('payment.failed', function (response: any){
+      setError(`Payment Failed: ${response.error.description}`);
+    });
+    rzp1.open();
   };
 
   return (

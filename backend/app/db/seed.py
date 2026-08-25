@@ -168,6 +168,44 @@ def seed_db():
                     )
                     db.add(decision)
 
+        # Generate 4 high-fidelity demo scenarios for the Activity Feed (A, B, C, D)
+        print("Generating specific demo scenarios...")
+        demo_cust = customers[0]
+        
+        # Scenario A: Cross-sell Accepted (Full Funnel)
+        decision_a = AgentDecision(
+            customer_id=demo_cust.id, merchant_id=merchant.id, session_id=str(uuid.uuid4()),
+            intent="purchase_gaming_mouse", primary_product_id=products[0].id, intervention_type="CROSS_SELL",
+            recommended_product_id=products[2].id, reason="Pairs well with G304", score=0.92,
+            expected_order_value=products[0].price + products[2].price, created_at=now
+        )
+        db.add(decision_a)
+        
+        logs_a = [
+            AuditLog(merchant_id=merchant.id, customer_id=demo_cust.id, action="Received intent: purchase_gaming_mouse", event_type="INTENT_RECEIVED", actor_type="SYSTEM", created_at=now - timedelta(minutes=10)),
+            AuditLog(merchant_id=merchant.id, customer_id=demo_cust.id, action=f"Discovered {products[0].name}", event_type="PRODUCT_DISCOVERED", actor_type="SYSTEM", created_at=now - timedelta(minutes=9)),
+            AuditLog(merchant_id=merchant.id, customer_id=demo_cust.id, action=f"Recommended {products[2].name}", event_type="RECOMMENDATION_MADE", actor_type="AGENT", created_at=now - timedelta(minutes=8)),
+            AuditLog(merchant_id=merchant.id, customer_id=demo_cust.id, action=f"Accepted {products[2].name}", event_type="RECOMMENDATION_ACCEPTED", actor_type="USER", created_at=now - timedelta(minutes=7)),
+            AuditLog(merchant_id=merchant.id, customer_id=demo_cust.id, action="Started checkout", event_type="CHECKOUT_STARTED", actor_type="USER", created_at=now - timedelta(minutes=6)),
+            AuditLog(merchant_id=merchant.id, customer_id=demo_cust.id, action="Payment successful", event_type="PAYMENT_CAPTURED", actor_type="SYSTEM", created_at=now - timedelta(minutes=5))
+        ]
+        db.add_all(logs_a)
+        
+        # Scenario B: Policy Engine Rejection (Too high transaction amount)
+        logs_b = [
+            AuditLog(merchant_id=merchant.id, customer_id=demo_cust.id, action="Attempted bulk checkout", event_type="CHECKOUT_STARTED", actor_type="USER", created_at=now - timedelta(minutes=30)),
+            AuditLog(merchant_id=merchant.id, customer_id=demo_cust.id, action="Policy rejected: Exceeds max transaction limit", event_type="POLICY_EVALUATED", actor_type="POLICY_ENGINE", metadata_json={"decision": "REJECTED", "reason": "MAX_AMOUNT_EXCEEDED"}, created_at=now - timedelta(minutes=29))
+        ]
+        db.add_all(logs_b)
+        
+        # Scenario C: Consent Flow
+        logs_c = [
+            AuditLog(merchant_id=merchant.id, customer_id=demo_cust.id, action="Checkout flagged for consent", event_type="POLICY_EVALUATED", actor_type="POLICY_ENGINE", metadata_json={"decision": "REQUIRES_CONSENT", "reason": "HIGH_VALUE_B2B"}, created_at=now - timedelta(minutes=60)),
+            AuditLog(merchant_id=merchant.id, customer_id=demo_cust.id, action="Consent request sent to merchant", event_type="CONSENT_REQUESTED", actor_type="SYSTEM", created_at=now - timedelta(minutes=59)),
+            AuditLog(merchant_id=merchant.id, customer_id=demo_cust.id, action="Merchant approved transaction", event_type="CONSENT_APPROVED", actor_type="MERCHANT", created_at=now - timedelta(minutes=45))
+        ]
+        db.add_all(logs_c)
+
         db.commit()
         print("Database seeded successfully!")
 

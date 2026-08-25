@@ -76,6 +76,9 @@ def tools_node(state: AgentState, config: RunnableConfig):
             elif name == "validate_policy":
                 state_updates["policy"] = result
                 state_updates["requires_consent"] = result.get("requires_consent", False) if isinstance(result, dict) else False
+            elif name == "create_razorpay_order":
+                if isinstance(result, dict) and "error" not in result:
+                    state_updates["payment_order"] = result
                 
             # Convert full output (including reason) to string for the LLM
             content = json.dumps(output)

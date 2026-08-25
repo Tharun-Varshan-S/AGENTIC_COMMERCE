@@ -87,12 +87,13 @@ export function AiChat({ messages, onSendMessage, isLoading }: AiChatProps) {
         )}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm">
+            <div className="bg-white border border-indigo-100 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm flex items-center space-x-3">
               <div className="flex space-x-1.5 items-center h-5">
-                <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></div>
               </div>
+              <span className="text-xs font-medium text-indigo-500 animate-pulse">Agent is thinking...</span>
             </div>
           </div>
         )}

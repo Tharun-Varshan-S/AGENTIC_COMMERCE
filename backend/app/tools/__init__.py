@@ -6,6 +6,7 @@ from app.tools.cart_tools import CalculateCartTool, ValidateCartTool
 from app.tools.recommendation_tools import GetRecommendationsTool
 from app.tools.revenue_tools import GetRevenueRecommendationTool
 from app.tools.policy_tools import ValidatePolicyTool
+from app.tools.payment_tools import CreateRazorpayOrderTool, GetPaymentStatusTool
 
 registry.register(SearchCatalogTool())
 registry.register(GetProductTool())
@@ -16,5 +17,7 @@ registry.register(ValidateCartTool())
 registry.register(GetRecommendationsTool())
 registry.register(GetRevenueRecommendationTool())
 registry.register(ValidatePolicyTool())
+registry.register(CreateRazorpayOrderTool())
+registry.register(GetPaymentStatusTool())
 
 __all__ = ["registry"]

@@ -44,8 +44,22 @@ class Order(BaseModel):
     merchant = relationship("Merchant", back_populates="orders")
     customer = relationship("Customer", back_populates="orders")
     cart = relationship("Cart", back_populates="order")
+    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     payment = relationship("Payment", back_populates="order", uselist=False, cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="order", cascade="all, delete-orphan")
+
+class OrderItem(BaseModel):
+    __tablename__ = "order_items"
+
+    order_id = Column(ForeignKey("orders.id"), nullable=False, index=True)
+    product_id = Column(ForeignKey("products.id"), nullable=False, index=True)
+    product_name = Column(String, nullable=False)
+    sku = Column(String, nullable=False)
+    quantity = Column(Integer, default=1, nullable=False)
+    unit_price = Column(Numeric(10, 2), nullable=False)
+    subtotal = Column(Numeric(10, 2), nullable=False)
+
+    order = relationship("Order", back_populates="items")
 
 class Payment(BaseModel):
     __tablename__ = "payments"
@@ -59,3 +73,12 @@ class Payment(BaseModel):
     status = Column(String, default="CREATED", nullable=False) # CREATED, AUTHORIZED, CAPTURED, FAILED, REFUNDED
 
     order = relationship("Order", back_populates="payment")
+
+class WebhookEvent(BaseModel):
+    __tablename__ = "webhook_events"
+
+    provider = Column(String, nullable=False, index=True)
+    provider_event_id = Column(String, nullable=False, unique=True, index=True)
+    event_type = Column(String, nullable=False)
+    processed = Column(String, default="PROCESSED", nullable=False) # PROCESSED, FAILED, IGNORED
+

@@ -10,6 +10,10 @@ from app.api.tools import router as tools_router
 from app.api.revenue import router as revenue_router
 from app.api.policy import router as policy_router
 from app.api.consent import router as consent_router
+from app.api.payments import router as payments_router
+from app.api.webhooks import router as webhooks_router
+from app.api.orders import router as orders_router
+from app.api.demo import router as demo_router
 import app.db.base  # Load models for SQLAlchemy registry
 
 app = FastAPI(
@@ -40,3 +44,6 @@ app.include_router(tools_router, prefix="/api", tags=["Commerce Tools"])
 app.include_router(revenue_router, prefix="/api", tags=["Revenue"])
 app.include_router(policy_router, prefix="/api", tags=["Policy"])
 app.include_router(consent_router, prefix="/api", tags=["Consent"])
+app.include_router(payments_router, prefix="/api/payments", tags=["Payments"])
+app.include_router(webhooks_router, prefix="/api/webhooks", tags=["Webhooks"])
+app.include_router(orders_router, prefix="/api/orders", tags=["Orders"])

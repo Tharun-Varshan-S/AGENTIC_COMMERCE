@@ -64,5 +64,6 @@ def get_agent_response(request: ChatRequest, db_session: Session) -> ChatRespons
         recommendation=result_state.get("recommendation"),
         cart=result_state.get("cart"),
         policy=result_state.get("policy"),
-        requires_consent=result_state.get("requires_consent", False)
+        requires_consent=result_state.get("requires_consent", False),
+        payment_order=result_state.get("payment_order")
     )

@@ -1,12 +1,47 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { LayoutDashboard, ShoppingCart, Box, Settings, Activity, BrainCircuit, RefreshCcw } from "lucide-react";
+import { API_BASE } from "@/lib/api";
 
 export default function MerchantLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleReset = async () => {
+    if (confirm("Are you sure you want to reset demo data? This will wipe the database and re-seed it.")) {
+      setIsResetting(true);
+      try {
+        const res = await fetch(`${API_BASE}/demo/reset`, { method: "POST" });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "Failed to reset");
+        }
+        alert("Demo state reset successfully!");
+        window.location.reload();
+      } catch (err: any) {
+        alert(`Error: ${err.message}`);
+      } finally {
+        setIsResetting(false);
+      }
+    }
+  };
+
+  const navItems = [
+    { name: "Dashboard", href: "/", icon: <LayoutDashboard className="w-5 h-5 mr-3" /> },
+    { name: "Agent Activity", href: "/activity", icon: <Activity className="w-5 h-5 mr-3" /> },
+    { name: "Decision Explorer", href: "/decisions", icon: <BrainCircuit className="w-5 h-5 mr-3" /> },
+    { name: "Orders", href: "/orders", icon: <ShoppingCart className="w-5 h-5 mr-3" /> },
+    { name: "Products", href: "/products", icon: <Box className="w-5 h-5 mr-3" /> },
+    { name: "Agent Rules", href: "/rules", icon: <Settings className="w-5 h-5 mr-3" /> },
+  ];
+
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-900 w-full">
       {/* Sidebar - hidden on mobile */}
@@ -15,22 +50,33 @@ export default function MerchantLayout({
           Agentic Commerce
         </div>
         <nav className="flex-1 py-4 px-3 space-y-1">
-          <a href="#" className="bg-indigo-600 text-white group flex items-center px-3 py-2 text-sm font-medium rounded-md">
-            Dashboard
-          </a>
-          <a href="#" className="text-slate-300 hover:bg-slate-800 hover:text-white group flex items-center px-3 py-2 text-sm font-medium rounded-md">
-            Orders
-          </a>
-          <a href="#" className="text-slate-300 hover:bg-slate-800 hover:text-white group flex items-center px-3 py-2 text-sm font-medium rounded-md">
-            Products
-          </a>
-          <a href="#" className="text-slate-300 hover:bg-slate-800 hover:text-white group flex items-center px-3 py-2 text-sm font-medium rounded-md">
-            Agent Rules
-          </a>
+          {navItems.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link 
+                key={item.name} 
+                href={item.href}
+                className={`${isActive ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'} group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors`}
+              >
+                {item.icon}
+                {item.name}
+              </Link>
+            );
+          })}
         </nav>
-        <div className="p-4 border-t border-slate-800 text-sm text-slate-400">
-          <p>TechNova Gaming</p>
-          <p className="text-xs mt-1">Status: Active</p>
+        <div className="p-4 border-t border-slate-800 text-sm text-slate-400 space-y-3">
+          <div>
+            <p className="font-semibold text-slate-200">TechNova Gaming</p>
+            <p className="text-xs mt-0.5">Status: Active Demo</p>
+          </div>
+          <button 
+            onClick={handleReset}
+            disabled={isResetting}
+            className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-red-900/50 text-slate-300 hover:text-red-400 border border-slate-700 hover:border-red-800 py-1.5 px-3 rounded text-xs font-medium transition-all disabled:opacity-50"
+          >
+            <RefreshCcw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin' : ''}`} />
+            {isResetting ? 'Resetting...' : 'Reset Demo Data'}
+          </button>
         </div>
       </aside>
 
