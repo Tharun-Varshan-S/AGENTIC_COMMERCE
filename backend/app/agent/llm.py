@@ -10,5 +10,6 @@ def get_llm():
     # The default model is gemini-1.5-flash as per the user instruction.
     return ChatGoogleGenerativeAI(
         model="gemini-1.5-flash",
-        temperature=0.0
+        temperature=0.0,
+        google_api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     )

@@ -30,7 +30,7 @@ cd backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env # Add your OpenAI and Razorpay keys
+cp .env.example .env # Add your Gemini and Razorpay keys
 alembic upgrade head
 python scripts/seed.py
 uvicorn app.main:app --reload
@@ -52,7 +52,7 @@ The platform includes a demo mode. From the Merchant Dashboard sidebar, click **
 **Backend (`backend/.env`)**
 ```env
 DATABASE_URL=postgresql://user:password@localhost/razorpay_hackathon
-OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=your_gemini_api_key
 RAZORPAY_KEY_ID=rzp_test_...
 RAZORPAY_KEY_SECRET=...
 DEMO_MODE=true
