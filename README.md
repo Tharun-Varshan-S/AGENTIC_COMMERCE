@@ -1,4 +1,4 @@
-# AI-Native Merchant Commerce Platform
+# Agentic Commerce
 
 An autonomous agent-driven commerce platform demonstrating the next evolution of e-commerce.
 

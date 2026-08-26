@@ -1,4 +1,5 @@
 from typing import List, Optional
+from uuid import UUID
 from datetime import date
 from pydantic import BaseModel, ConfigDict
 from decimal import Decimal
@@ -91,7 +92,7 @@ class DashboardData(BaseModel):
     revenue_intelligence: RevenueIntelligenceKPIs
 
 class RecentOrder(BaseModel):
-    id: int
+    id: UUID
     order_number: str
     status: str
     source: str
@@ -101,7 +102,7 @@ class RecentOrder(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class RecentDecision(BaseModel):
-    id: int
+    id: UUID
     customer_name: str
     intent: str
     primary_product: str
