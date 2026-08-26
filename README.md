@@ -58,7 +58,3 @@ RAZORPAY_KEY_SECRET=...
 DEMO_MODE=true
 ```
 
-**Frontend (`frontend/.env.local`)**
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000/api
-```
