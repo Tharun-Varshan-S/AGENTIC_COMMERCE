@@ -2,9 +2,10 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LayoutDashboard, ShoppingCart, Box, Settings, Activity, BrainCircuit, RefreshCcw, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { LayoutDashboard, ShoppingCart, Box, Settings, Activity, BrainCircuit, RefreshCcw, PanelLeftClose, PanelLeftOpen, LogOut } from "lucide-react";
 import { API_BASE } from "@/lib/api";
+import { useAuth } from "@/components/auth-provider";
 
 export default function MerchantLayout({
   children,
@@ -12,6 +13,8 @@ export default function MerchantLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
   const [isResetting, setIsResetting] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -35,13 +38,17 @@ export default function MerchantLayout({
   };
 
   const navItems = [
-    { name: "Dashboard", href: "/", icon: <LayoutDashboard className="w-5 h-5 mr-3" /> },
-    { name: "Agent Activity", href: "/activity", icon: <Activity className="w-5 h-5 mr-3" /> },
-    { name: "Decision Explorer", href: "/decisions", icon: <BrainCircuit className="w-5 h-5 mr-3" /> },
-    { name: "Orders", href: "/orders", icon: <ShoppingCart className="w-5 h-5 mr-3" /> },
-    { name: "Products", href: "/products", icon: <Box className="w-5 h-5 mr-3" /> },
-    { name: "Agent Rules", href: "/rules", icon: <Settings className="w-5 h-5 mr-3" /> },
+    { name: "Dashboard", href: "/merchant/dashboard", icon: <LayoutDashboard className="w-5 h-5 mr-3" /> },
+    { name: "Agent Activity", href: "/merchant/activity", icon: <Activity className="w-5 h-5 mr-3" /> },
+    { name: "Decision Explorer", href: "/merchant/decisions", icon: <BrainCircuit className="w-5 h-5 mr-3" /> },
+    { name: "Orders", href: "/merchant/orders", icon: <ShoppingCart className="w-5 h-5 mr-3" /> },
+    { name: "Products", href: "/merchant/products", icon: <Box className="w-5 h-5 mr-3" /> },
+    { name: "Agent Rules", href: "/merchant/rules", icon: <Settings className="w-5 h-5 mr-3" /> },
   ];
+
+  const merchantInitials = user?.merchant_name 
+    ? user.merchant_name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+    : 'M';
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-900 w-full relative">
@@ -60,12 +67,15 @@ export default function MerchantLayout({
         } overflow-hidden`}
       >
         <div className="w-64 flex flex-col h-full">
-          <div className="h-16 flex items-center px-6 font-bold text-lg border-b border-slate-800 shrink-0">
+          <div className="h-16 flex items-center px-6 font-bold text-lg border-b border-slate-800 shrink-0 gap-2">
+            <div className="bg-indigo-600 p-1 rounded">
+              <Box className="w-5 h-5 text-white" />
+            </div>
             Agentic Commerce
           </div>
           <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
             {navItems.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = pathname === item.href || (item.href !== '/merchant/dashboard' && pathname?.startsWith(item.href));
               return (
                 <Link 
                   key={item.name} 
@@ -80,9 +90,16 @@ export default function MerchantLayout({
           </nav>
           <div className="p-4 border-t border-slate-800 text-sm text-slate-400 space-y-3 shrink-0">
             <div>
-              <p className="font-semibold text-slate-200">TechNova Gaming</p>
-              <p className="text-xs mt-0.5">Status: Active Demo</p>
+              <p className="font-semibold text-slate-200 truncate">{user?.merchant_name || 'Loading...'}</p>
+              <p className="text-xs mt-0.5 truncate">{user?.email}</p>
             </div>
+            <button 
+              onClick={logout}
+              className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white py-1.5 px-3 rounded text-xs font-medium transition-all"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Sign Out
+            </button>
             <button 
               onClick={handleReset}
               disabled={isResetting}
@@ -110,11 +127,13 @@ export default function MerchantLayout({
                 <PanelLeftOpen className="w-5 h-5" strokeWidth={2} />
               )}
             </button>
-            <h1 className="text-lg md:text-xl font-semibold text-slate-800">Merchant Dashboard</h1>
+            <h1 className="text-lg md:text-xl font-semibold text-slate-800">
+              {navItems.find(i => i.href === pathname)?.name || 'Merchant Dashboard'}
+            </h1>
           </div>
           <div className="flex items-center space-x-4">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 font-medium text-sm md:text-base">
-              TN
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 font-medium text-sm md:text-base cursor-default" title={user?.full_name || 'Admin'}>
+              {merchantInitials}
             </span>
           </div>
         </header>

@@ -20,9 +20,12 @@ class CoreRepository:
         category: Optional[str] = None,
         is_active: Optional[bool] = None,
         search: Optional[str] = None,
-        max_price: Optional[Decimal] = None
+        max_price: Optional[Decimal] = None,
+        merchant_id: Optional[UUID] = None
     ) -> List[Product]:
         query = select(Product)
+        if merchant_id:
+            query = query.filter(Product.merchant_id == merchant_id)
         if category:
             query = query.filter(Product.category == category)
         if is_active is not None:

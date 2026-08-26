@@ -6,13 +6,33 @@ from uuid import UUID
 from app.db.session import get_db
 from app.models.order import Order, OrderItem
 from app.models.audit import AuditLog
-from app.api.auth import get_demo_merchant
+from app.api.auth import get_current_merchant_user
+from app.models.merchant import Merchant
 
 router = APIRouter()
 
+@router.get("")
+def list_orders(db: Session = Depends(get_db), merchant: Merchant = Depends(get_current_merchant_user)):
+    orders = db.scalars(
+        select(Order)
+        .filter(Order.merchant_id == merchant.id)
+        .order_by(Order.created_at.desc())
+    ).all()
+    
+    return [
+        {
+            "id": o.id,
+            "order_number": o.order_number,
+            "status": o.status,
+            "total": o.total,
+            "created_at": o.created_at.isoformat(),
+            "customer_name": o.customer.name,
+            "items_count": len(o.items)
+        } for o in orders
+    ]
+
 @router.get("/{order_id}")
-def get_order(order_id: UUID, db: Session = Depends(get_db)):
-    merchant = get_demo_merchant(db)
+def get_order(order_id: UUID, db: Session = Depends(get_db), merchant: Merchant = Depends(get_current_merchant_user)):
     
     order = db.scalar(
         select(Order)

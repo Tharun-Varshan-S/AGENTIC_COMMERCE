@@ -4,6 +4,8 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+import app.db.base  # Load models for SQLAlchemy registry before routers
+
 from app.api.health import router as health_router
 from app.api.endpoints import router as core_router
 from app.api.analytics import router as analytics_router
@@ -17,7 +19,7 @@ from app.api.payments import router as payments_router
 from app.api.webhooks import router as webhooks_router
 from app.api.orders import router as orders_router
 from app.api.demo import router as demo_router
-import app.db.base  # Load models for SQLAlchemy registry
+from app.api.auth import router as auth_router
 
 app = FastAPI(
     title="AI-Native Merchant Commerce Platform",
@@ -51,3 +53,4 @@ app.include_router(payments_router, prefix="/api/payments", tags=["Payments"])
 app.include_router(webhooks_router, prefix="/api/webhooks", tags=["Webhooks"])
 app.include_router(orders_router, prefix="/api/orders", tags=["Orders"])
 app.include_router(demo_router, prefix="/api/demo", tags=["Demo"])
+app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])

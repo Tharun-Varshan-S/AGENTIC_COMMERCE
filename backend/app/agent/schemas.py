@@ -13,8 +13,11 @@ class AgentState(TypedDict):
     
     # UI state variables collected by intercepting tools
     products: Optional[List[Dict[str, Any]]]
+    comparison: Optional[List[Dict[str, Any]]]
+    ranked_products: Optional[List[Dict[str, Any]]]
     recommendation: Optional[Dict[str, Any]]
     cart: Optional[Dict[str, Any]]
+    checkout_session: Optional[Dict[str, Any]]
     policy: Optional[Dict[str, Any]]
     requires_consent: bool
     payment_order: Optional[Dict[str, Any]]
@@ -36,8 +39,11 @@ class ChatResponse(BaseModel):
     
     # UI state variables
     products: List[Dict[str, Any]] = Field(default_factory=list)
+    comparison: Optional[List[Dict[str, Any]]] = None
+    ranked_products: Optional[List[Dict[str, Any]]] = None
     recommendation: Optional[Dict[str, Any]] = None
     cart: Optional[Dict[str, Any]] = None
+    checkout_session: Optional[Dict[str, Any]] = None
     policy: Optional[Dict[str, Any]] = None
     requires_consent: bool = False
     payment_order: Optional[Dict[str, Any]] = None

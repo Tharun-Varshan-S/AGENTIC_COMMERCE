@@ -45,7 +45,33 @@ class ProductBase(BaseModel):
     cost_price: Optional[Decimal] = None
     currency: str = "INR"
     is_active: bool = True
+    source: str = "razorpay"
+    rating: Optional[Decimal] = None
+    review_count: int = 0
+    delivery_estimate: Optional[str] = None
+    is_sponsored: bool = False
+    product_url: Optional[str] = None
+    image_url: Optional[str] = None
+    mrp: Optional[Decimal] = None
     metadata_json: Optional[Dict[str, Any]] = None
+
+class PromotionBase(BaseModel):
+    merchant_id: UUID
+    product_id: UUID
+    budget: Decimal
+    remaining_budget: Decimal
+    priority: int = 1
+    status: str = "ACTIVE"
+    target_category: Optional[str] = None
+    target_keywords: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+
+class PromotionResponse(PromotionBase, ORMBase):
+    impressions: int = 0
+    agent_recommendations: int = 0
+    clicks: int = 0
+    conversions: int = 0
 
 class ProductResponse(ProductBase, ORMBase):
     inventory: Optional[InventoryResponse] = None

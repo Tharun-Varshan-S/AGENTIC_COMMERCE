@@ -64,11 +64,21 @@ def tools_node(state: AgentState, config: RunnableConfig):
                 
             # Update UI state based on tool name
             name = tool_call["name"]
-            if name == "search_catalog":
-                state_updates["products"] = result.get("products", []) if isinstance(result, dict) else []
-            elif name == "get_product":
+            if name in ["search_amazon_catalog", "search_flipkart_catalog", "search_razorpay_merchants", "search_catalog"]:
+                # Append to existing products in state to show multi-source results
+                current_products = state.get("products", []) or []
+                new_products = result.get("products", []) if isinstance(result, dict) else []
+                state_updates["products"] = current_products + new_products
+            elif name == "get_product_details":
                 if isinstance(result, dict) and "error" not in result:
                     state_updates["products"] = [result]
+            elif name == "compare_products":
+                state_updates["comparison"] = result.get("comparison", []) if isinstance(result, dict) else []
+            elif name == "rank_products":
+                state_updates["ranked_products"] = result.get("ranked_products", []) if isinstance(result, dict) else []
+            elif name == "create_checkout_session":
+                if isinstance(result, dict) and result.get("checkout_ready"):
+                    state_updates["checkout_session"] = result
             elif name == "get_revenue_recommendation":
                 state_updates["recommendation"] = result
             elif name in ["calculate_cart", "add_to_cart", "remove_from_cart", "update_cart_quantity"]:

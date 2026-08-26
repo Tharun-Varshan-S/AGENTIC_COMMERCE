@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchDashboard, fetchRecentActivity } from "@/lib/api";
+import { fetchDashboard, fetchRecentActivity, fetchPromotions } from "@/lib/api";
 import { 
   TrendingUp, ShoppingCart, Package, AlertTriangle, Bot,
-  Target, ShieldCheck, ShieldAlert, CreditCard, Activity
+  Target, ShieldCheck, ShieldAlert, CreditCard, Activity,
+  Megaphone
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -28,16 +29,18 @@ function formatTime(dateString: string) {
 export default function Dashboard() {
   const [dashboard, setDashboard] = useState<any>(null);
   const [activity, setActivity] = useState<any>(null);
+  const [promotions, setPromotions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const [dashData, actData] = await Promise.all([
-          fetchDashboard(), fetchRecentActivity()
+        const [dashData, actData, promosData] = await Promise.all([
+          fetchDashboard(), fetchRecentActivity(), fetchPromotions()
         ]);
         setDashboard(dashData);
         setActivity(actData);
+        setPromotions(promosData);
       } catch (e) {
         console.error(e);
       } finally {
@@ -240,6 +243,75 @@ export default function Dashboard() {
                   <td className="px-5 py-3 text-right font-medium text-emerald-600">{formatCurrency(rec.expected_order_value)}</td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Promotions & Ads */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6">
+        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-indigo-50/50">
+          <div className="flex items-center gap-2">
+             <Megaphone className="w-5 h-5 text-indigo-600" />
+             <h3 className="text-base font-semibold text-indigo-900">Active AI Promotions & Ads</h3>
+          </div>
+          <button className="text-sm font-medium text-indigo-600 hover:text-indigo-700 bg-white border border-indigo-200 px-3 py-1.5 rounded-md shadow-sm">
+            Create Campaign
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="text-xs text-slate-500 bg-slate-50 border-b border-slate-200 uppercase">
+              <tr>
+                <th className="px-5 py-3 font-medium">Product</th>
+                <th className="px-5 py-3 font-medium">Status</th>
+                <th className="px-5 py-3 font-medium">Priority</th>
+                <th className="px-5 py-3 font-medium text-right">Budget</th>
+                <th className="px-5 py-3 font-medium text-right">Remaining</th>
+                <th className="px-5 py-3 font-medium text-right">Performance</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {promotions.map((promo: any, idx: number) => (
+                <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-5 py-4 font-medium text-slate-900">{promo.product_name}</td>
+                  <td className="px-5 py-4">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${promo.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                      {promo.status}
+                    </span>
+                  </td>
+                  <td className="px-5 py-4">
+                    <div className="flex gap-0.5">
+                       {Array.from({length: 5}).map((_, i) => (
+                          <div key={i} className={`w-1.5 h-3 rounded-sm ${i < promo.priority ? 'bg-indigo-500' : 'bg-slate-200'}`} />
+                       ))}
+                    </div>
+                  </td>
+                  <td className="px-5 py-4 text-right font-medium">{formatCurrency(promo.budget)}</td>
+                  <td className="px-5 py-4 text-right">
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="font-medium text-slate-900">{formatCurrency(promo.remaining_budget)}</span>
+                      <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-500" style={{width: `${(promo.remaining_budget / promo.budget) * 100}%`}}></div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-5 py-4 text-right">
+                    <div className="text-xs text-slate-500 space-y-0.5">
+                      <div><span className="font-medium text-slate-700">{promo.impressions}</span> views</div>
+                      <div><span className="font-medium text-slate-700">{promo.clicks}</span> clicks</div>
+                      <div><span className="font-medium text-emerald-600">{promo.conversions}</span> sales</div>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {promotions.length === 0 && (
+                <tr>
+                   <td colSpan={6} className="px-5 py-8 text-center text-slate-500">
+                     No active promotions. Run the seed script to generate sample promotions.
+                   </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

@@ -1,23 +1,24 @@
 from app.tools.registry import registry
-from app.tools.catalog_tools import SearchCatalogTool, GetProductTool
-from app.tools.inventory_tools import CheckInventoryTool
-from app.tools.customer_tools import GetCustomerContextTool
-from app.tools.cart_tools import CalculateCartTool, ValidateCartTool
-from app.tools.recommendation_tools import GetRecommendationsTool
-from app.tools.revenue_tools import GetRevenueRecommendationTool
-from app.tools.policy_tools import ValidatePolicyTool
-from app.tools.payment_tools import CreateRazorpayOrderTool, GetPaymentStatusTool
+from app.tools.multi_source_tools import (
+    SearchAmazonCatalogTool,
+    SearchFlipkartCatalogTool,
+    SearchRazorpayMerchantsTool,
+    GetProductDetailsTool,
+    CheckProductAvailabilityTool,
+    GetMerchantPromotionTool,
+    CompareProductsTool,
+    RankProductsTool,
+    CreateCheckoutSessionTool
+)
 
-registry.register(SearchCatalogTool())
-registry.register(GetProductTool())
-registry.register(CheckInventoryTool())
-registry.register(GetCustomerContextTool())
-registry.register(CalculateCartTool())
-registry.register(ValidateCartTool())
-registry.register(GetRecommendationsTool())
-registry.register(GetRevenueRecommendationTool())
-registry.register(ValidatePolicyTool())
-registry.register(CreateRazorpayOrderTool())
-registry.register(GetPaymentStatusTool())
+registry.register(SearchAmazonCatalogTool())
+registry.register(SearchFlipkartCatalogTool())
+registry.register(SearchRazorpayMerchantsTool())
+registry.register(GetProductDetailsTool())
+registry.register(CheckProductAvailabilityTool())
+registry.register(GetMerchantPromotionTool())
+registry.register(CompareProductsTool())
+registry.register(RankProductsTool())
+registry.register(CreateCheckoutSessionTool())
 
 __all__ = ["registry"]

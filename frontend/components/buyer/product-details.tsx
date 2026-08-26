@@ -19,6 +19,11 @@ export function ProductDetails({ product, onClose, onAddToCart }: ProductDetails
     }).format(Number(price));
   };
 
+  const calculateDiscount = (price: number, mrp: number) => {
+    if (mrp <= price) return 0;
+    return Math.round(((mrp - price) / mrp) * 100);
+  };
+
   const isAvailable = product.inventory && product.inventory.available_quantity > 0;
 
   return (
@@ -36,7 +41,25 @@ export function ProductDetails({ product, onClose, onAddToCart }: ProductDetails
 
         <div className="p-6 overflow-y-auto">
           <div className="flex flex-col md:flex-row gap-8">
-            <div className="flex-1 space-y-6">
+            
+            {/* Image Column */}
+            <div className="w-full md:w-1/2 flex-shrink-0">
+              <div className="aspect-square bg-gray-50 rounded-xl overflow-hidden border border-gray-100 flex items-center justify-center relative">
+                {product.image_url ? (
+                  <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                ) : (
+                  <ShoppingBag className="w-24 h-24 text-gray-200" />
+                )}
+                {product.is_sponsored && (
+                  <div className="absolute top-0 right-0 bg-amber-100 text-amber-800 text-[10px] font-bold px-3 py-1 rounded-bl-lg">
+                    Sponsored
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Content Column */}
+            <div className="flex-1 flex flex-col space-y-6">
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-sm font-semibold tracking-wider text-indigo-600 uppercase">
@@ -52,9 +75,21 @@ export function ProductDetails({ product, onClose, onAddToCart }: ProductDetails
                 <p className="text-sm text-gray-500 font-mono">SKU: {product.sku}</p>
               </div>
 
-              <p className="text-4xl font-bold text-gray-900">
-                {formatPrice(product.price)}
-              </p>
+              <div className="flex items-baseline gap-3">
+                <p className="text-4xl font-bold text-gray-900">
+                  {formatPrice(product.price)}
+                </p>
+                {product.mrp && Number(product.mrp) > Number(product.price) && (
+                  <>
+                    <p className="text-lg text-gray-400 line-through">
+                      {formatPrice(product.mrp)}
+                    </p>
+                    <p className="text-sm font-bold text-green-600 bg-green-50 px-2 py-1 rounded">
+                      {calculateDiscount(Number(product.price), Number(product.mrp))}% OFF
+                    </p>
+                  </>
+                )}
+              </div>
 
               <div className="prose prose-sm text-gray-600">
                 <p>{product.description}</p>
@@ -95,7 +130,7 @@ export function ProductDetails({ product, onClose, onAddToCart }: ProductDetails
             className="flex items-center gap-2 px-8 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-colors shadow-sm shadow-indigo-200"
           >
             <ShoppingBag className="w-5 h-5" />
-            Add to Cart
+            Buy Now
           </button>
         </div>
       </div>

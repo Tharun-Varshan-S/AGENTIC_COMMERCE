@@ -29,9 +29,16 @@ def get_products(
     is_active: Optional[bool] = None,
     search: Optional[str] = None,
     max_price: Optional[Decimal] = None,
+    merchant_id: Optional[UUID] = None,
     service: CoreService = Depends(get_service)
 ):
-    return service.get_products(category=category, is_active=is_active, search=search, max_price=max_price)
+    return service.get_products(
+        category=category, 
+        is_active=is_active, 
+        search=search, 
+        max_price=max_price, 
+        merchant_id=merchant_id
+    )
 
 @router.get("/products/{product_id}", response_model=ProductResponse)
 def get_product(product_id: UUID, service: CoreService = Depends(get_service)):

@@ -50,13 +50,13 @@ def _adapt_tool(commerce_tool: CommerceTool) -> StructuredTool:
         # Execute the commerce tool
         result = commerce_tool.execute(db_session=db, **kwargs)
         
-        # We return both the result and the reason so we can intercept it in the graph's tool node
-        # Wait, if we return it directly, the ToolNode will format it as a string for the LLM.
-        # But we also want to extract it in the AgentState.
-        # LangGraph's ToolNode captures the raw output. 
-        # So we can return a dictionary that contains both the raw tool result and the reason.
+        if hasattr(result, "model_dump"):
+            dumped_result = result.model_dump()
+        else:
+            dumped_result = result
+            
         return {
-            "result": result.model_dump(),
+            "result": dumped_result,
             "reason": reason
         }
 

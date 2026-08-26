@@ -25,9 +25,16 @@ class CoreService:
         category: Optional[str] = None,
         is_active: Optional[bool] = None,
         search: Optional[str] = None,
-        max_price: Optional[Decimal] = None
+        max_price: Optional[Decimal] = None,
+        merchant_id: Optional[UUID] = None
     ) -> List[ProductResponse]:
-        products = self.repo.get_products(category=category, is_active=is_active, search=search, max_price=max_price)
+        products = self.repo.get_products(
+            category=category, 
+            is_active=is_active, 
+            search=search, 
+            max_price=max_price, 
+            merchant_id=merchant_id
+        )
         
         results = []
         for p in products:

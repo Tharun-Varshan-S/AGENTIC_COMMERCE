@@ -16,6 +16,14 @@ class Product(BaseModel):
     cost_price = Column(Numeric(10, 2))
     currency = Column(String, default="INR", nullable=False)
     is_active = Column(Boolean, default=True, nullable=False, index=True)
+    source = Column(String, default="razorpay", nullable=False, index=True)
+    rating = Column(Numeric(3, 2))
+    review_count = Column(Integer, default=0)
+    delivery_estimate = Column(String)
+    is_sponsored = Column(Boolean, default=False)
+    product_url = Column(String)
+    image_url = Column(String)
+    mrp = Column(Numeric(10, 2))
     metadata_json = Column("metadata", JSONB) # Renamed attribute slightly to avoid Python issues, but column is metadata
 
     merchant = relationship("Merchant", back_populates="products")
@@ -24,6 +32,7 @@ class Product(BaseModel):
     cart_items = relationship("CartItem", back_populates="product", cascade="all, delete-orphan")
     agent_decisions_primary = relationship("AgentDecision", foreign_keys="[AgentDecision.primary_product_id]", back_populates="primary_product")
     agent_decisions_recommended = relationship("AgentDecision", foreign_keys="[AgentDecision.recommended_product_id]", back_populates="recommended_product")
+    promotions = relationship("Promotion", back_populates="product", cascade="all, delete-orphan")
 
 
 class Inventory(BaseModel):

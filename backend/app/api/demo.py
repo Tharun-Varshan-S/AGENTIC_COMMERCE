@@ -10,9 +10,7 @@ from app.api.auth import get_demo_merchant
 router = APIRouter()
 
 @router.post("/reset")
-def reset_demo_state(db: Session = Depends(get_db)):
-    merchant = get_demo_merchant(db)
-    
+def reset_demo_state():
     # Check if DEMO_MODE is true
     if os.getenv("DEMO_MODE", "false").lower() != "true":
         raise HTTPException(status_code=403, detail="Reset is only available in DEMO_MODE")

@@ -3,7 +3,8 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from app.models.order import Cart, Order, OrderItem, Payment, WebhookEvent
+from app.models.order import Cart, Order, OrderItem, Payment
+from app.models.webhook import WebhookEvent
 from app.models.audit import AuditLog
 from app.policy.service import PolicyService
 from app.policy.schemas import PolicyEvaluationRequest
@@ -169,17 +170,21 @@ def process_webhook(db: Session, payload: dict):
     """
     event_type = payload.get("event")
     event_id = payload.get("id") or payload.get("event_id")
+    account_id = payload.get("account_id")
     
     # Idempotency check
-    existing = db.query(WebhookEvent).filter_by(provider="razorpay", provider_event_id=event_id).first()
+    existing = db.query(WebhookEvent).filter_by(event_id=event_id).first()
     if existing:
         return {"status": "duplicate"}
         
     webhook_event = WebhookEvent(
-        provider="razorpay",
-        provider_event_id=event_id,
+        event_id=event_id,
         event_type=event_type,
-        processed="PROCESSED"
+        account_id=account_id,
+        payload=payload,
+        signature_valid=True,
+        processed=True,
+        processed_at=datetime.utcnow()
     )
     db.add(webhook_event)
     

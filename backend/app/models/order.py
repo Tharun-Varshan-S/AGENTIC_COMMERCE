@@ -73,12 +73,3 @@ class Payment(BaseModel):
     status = Column(String, default="CREATED", nullable=False) # CREATED, AUTHORIZED, CAPTURED, FAILED, REFUNDED
 
     order = relationship("Order", back_populates="payment")
-
-class WebhookEvent(BaseModel):
-    __tablename__ = "webhook_events"
-
-    provider = Column(String, nullable=False, index=True)
-    provider_event_id = Column(String, nullable=False, unique=True, index=True)
-    event_type = Column(String, nullable=False)
-    processed = Column(String, default="PROCESSED", nullable=False) # PROCESSED, FAILED, IGNORED
-

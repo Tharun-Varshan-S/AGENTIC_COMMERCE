@@ -61,8 +61,11 @@ def get_agent_response(request: ChatRequest, db_session: Session) -> ChatRespons
         message=final_message,
         tool_calls=tool_calls_log,
         products=result_state.get("products", []),
+        comparison=result_state.get("comparison"),
+        ranked_products=result_state.get("ranked_products"),
         recommendation=result_state.get("recommendation"),
         cart=result_state.get("cart"),
+        checkout_session=result_state.get("checkout_session"),
         policy=result_state.get("policy"),
         requires_consent=result_state.get("requires_consent", False),
         payment_order=result_state.get("payment_order")
