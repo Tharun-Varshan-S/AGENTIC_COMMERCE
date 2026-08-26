@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ShoppingCart, Box, Settings, Activity, BrainCircuit, RefreshCcw } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Box, Settings, Activity, BrainCircuit, RefreshCcw, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 
 export default function MerchantLayout({
@@ -101,9 +101,14 @@ export default function MerchantLayout({
           <div className="flex items-center gap-3">
             <button 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
+              className="p-2 text-slate-500 hover:bg-slate-100 rounded-md transition-colors tooltip-trigger"
+              title={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+              {isSidebarOpen ? (
+                <PanelLeftClose className="w-5 h-5" strokeWidth={2} />
+              ) : (
+                <PanelLeftOpen className="w-5 h-5" strokeWidth={2} />
+              )}
             </button>
             <h1 className="text-lg md:text-xl font-semibold text-slate-800">Merchant Dashboard</h1>
           </div>
