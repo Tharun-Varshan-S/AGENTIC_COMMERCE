@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
@@ -20,7 +21,7 @@ def reset_demo_state(db: Session = Depends(get_db)):
         # We will run the seed script which handles everything.
         # We use subprocess to run python backend/scripts/seed.py
         result = subprocess.run(
-            ["python", "scripts/seed.py"],
+            [sys.executable, "scripts/seed.py"],
             cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")),
             capture_output=True,
             text=True,
