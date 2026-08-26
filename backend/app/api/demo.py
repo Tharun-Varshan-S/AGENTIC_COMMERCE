@@ -19,9 +19,9 @@ def reset_demo_state(db: Session = Depends(get_db)):
     
     try:
         # We will run the seed script which handles everything.
-        # We use subprocess to run python backend/scripts/seed.py
+        # We use subprocess to run python -m app.db.seed
         result = subprocess.run(
-            [sys.executable, "scripts/seed.py"],
+            [sys.executable, "-m", "app.db.seed"],
             cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")),
             capture_output=True,
             text=True,

@@ -32,7 +32,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env # Add your Gemini and Razorpay keys
 alembic upgrade head
-python scripts/seed.py
+python -m app.db.seed
 uvicorn app.main:app --reload
 ```
 
