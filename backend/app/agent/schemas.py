@@ -21,6 +21,12 @@ class AgentState(TypedDict):
     policy: Optional[Dict[str, Any]]
     requires_consent: bool
     payment_order: Optional[Dict[str, Any]]
+    
+    # New orchestration state fields for Agentic Commerce pipeline
+    shopping_intent: Optional[Dict[str, Any]] # Serialized ShoppingIntent
+    discovered_merchants: Optional[List[str]]
+    normalized_products: Optional[List[Dict[str, Any]]] # Serialized NormalizedProduct list
+
 
 class ChatRequest(BaseModel):
     session_id: str = Field(..., description="Unique session ID for the conversation")

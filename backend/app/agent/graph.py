@@ -3,26 +3,118 @@ from typing import Literal
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_core.messages import ToolMessage, SystemMessage, AIMessage
+from langchain_core.messages import ToolMessage, SystemMessage, AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.agent.schemas import AgentState
 from app.agent.llm import get_llm
 from app.agent.tools import create_agent_tools
 from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.models import ShoppingIntent
+from app.agent.merchants import get_available_merchants
 
 MAX_TOOL_CALLS = 8
 
+def plan_node(state: AgentState, config: RunnableConfig):
+    """Parses user input into a structured ShoppingIntent if applicable."""
+    messages = state.get("messages", [])
+    if not messages:
+        return {}
+        
+    last_msg = messages[-1]
+    if not isinstance(last_msg, HumanMessage):
+        # We only plan on new human messages
+        return {}
+        
+    llm = get_llm()
+    structured_llm = llm.with_structured_output(ShoppingIntent)
+    
+    try:
+        intent = structured_llm.invoke([
+            SystemMessage(content="You are a shopping assistant planner. Extract the user's shopping intent. If the user is just saying hello or asking a general question, set is_search to false."),
+            last_msg
+        ])
+        return {"shopping_intent": intent.model_dump()}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {}
+
+def discover_node(state: AgentState, config: RunnableConfig):
+    """Finds all capabilities and merchants available."""
+    intent = state.get("shopping_intent")
+    if not intent or not intent.get("is_search"):
+        return {}
+        
+    merchants = get_available_merchants()
+    return {"discovered_merchants": [m.source_id for m in merchants]}
+
+def search_node(state: AgentState, config: RunnableConfig):
+    """Executes parallel searches across discovered merchants."""
+    intent = state.get("shopping_intent")
+    merchant_ids = state.get("discovered_merchants", [])
+    
+    if not intent or not intent.get("is_search") or not merchant_ids:
+        return {}
+        
+    db_session = config["configurable"]["db"]
+    merchants = get_available_merchants()
+    
+    all_products = []
+    for m in merchants:
+        if m.source_id in merchant_ids:
+            try:
+                products = m.search_catalog(
+                    db_session=db_session,
+                    query=intent.get("query", ""),
+                    category=intent.get("keywords", [])[0] if intent.get("keywords") else None,
+                    max_price=intent.get("max_price"),
+                    limit=5
+                )
+                all_products.extend([p.model_dump() for p in products])
+            except Exception as e:
+                print(f"Error searching merchant {m.name}: {e}")
+                
+    return {"normalized_products": all_products}
+
+def rank_node(state: AgentState, config: RunnableConfig):
+    """Ranks and formats normalized products into the state format expected by the frontend."""
+    products = state.get("normalized_products", [])
+    if not products:
+        return {}
+    
+    ui_products = []
+    for p in products[:10]:
+        ui_products.append({
+            "id": p["id"],
+            "source": p.get("merchant", "local_db"),
+            "name": p["title"],
+            "price": p["price"],
+            "image_url": p.get("url"),
+            "description": p["description"],
+            "delivery_estimate": p.get("delivery_estimate")
+        })
+        
+    return {"products": ui_products}
+
+
 def agent_node(state: AgentState, config: RunnableConfig):
-    # Initialize tools and model
+    """Main conversational agent that responds to the user and orchestrates tool usage."""
     tools = create_agent_tools()
     llm = get_llm().bind_tools(tools)
     
-    # Ensure system prompt is first
-    messages = state.get("messages", [])
+    messages = list(state.get("messages", []))
     if not messages or not isinstance(messages[0], SystemMessage):
         messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
         
+    # Inject context from pipeline if we did a search
+    intent = state.get("shopping_intent")
+    if intent and intent.get("is_search"):
+        products = state.get("products", [])
+        if products:
+            context_msg = f"Search Results Context: Found {len(products)} products across merchants based on your plan. Summarize these briefly to the user. Results: {json.dumps(products)}"
+            messages.append(SystemMessage(content=context_msg))
+            
     # Check max tool calls
     if state.get("tool_call_count", 0) >= MAX_TOOL_CALLS:
         return {"messages": [AIMessage(content="I wasn't able to fully resolve this — could you clarify what you're looking for?")]}
@@ -55,10 +147,8 @@ def tools_node(state: AgentState, config: RunnableConfig):
             continue
             
         try:
-            # Execute tool directly to capture object return
             output = tool.invoke(tool_call["args"], config=config)
             
-            # The tool adapter returns {"result": ..., "reason": ...}
             if isinstance(output, str):
                 try:
                     output = json.loads(output)
@@ -70,10 +160,8 @@ def tools_node(state: AgentState, config: RunnableConfig):
             else:
                 result = output
                 
-            # Update UI state based on tool name
             name = tool_call["name"]
             if name in ["search_amazon_catalog", "search_flipkart_catalog", "search_razorpay_merchants", "search_catalog"]:
-                # Append to existing products in state to show multi-source results
                 current_products = state.get("products", []) or []
                 new_products = result.get("products", []) if isinstance(result, dict) else []
                 state_updates["products"] = current_products + new_products
@@ -98,7 +186,6 @@ def tools_node(state: AgentState, config: RunnableConfig):
                 if isinstance(result, dict) and "error" not in result:
                     state_updates["payment_order"] = result
                 
-            # Convert full output (including reason) to string for the LLM
             content = json.dumps(output)
             
             tool_messages.append(ToolMessage(
@@ -114,6 +201,12 @@ def tools_node(state: AgentState, config: RunnableConfig):
     state_updates["messages"] = tool_messages
     return state_updates
 
+def should_search(state: AgentState) -> Literal["discover", "agent"]:
+    intent = state.get("shopping_intent")
+    if intent and intent.get("is_search"):
+        return "discover"
+    return "agent"
+
 def should_continue(state: AgentState) -> Literal["tools", "__end__"]:
     messages = state.get("messages", [])
     if not messages:
@@ -121,9 +214,7 @@ def should_continue(state: AgentState) -> Literal["tools", "__end__"]:
         
     last_message = messages[-1]
     
-    # Check if there are tool calls
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-        # Check loop limit
         if state.get("tool_call_count", 0) >= MAX_TOOL_CALLS:
             return "__end__"
         return "tools"
@@ -131,10 +222,21 @@ def should_continue(state: AgentState) -> Literal["tools", "__end__"]:
 
 def build_graph():
     workflow = StateGraph(AgentState)
+    
+    workflow.add_node("plan", plan_node)
+    workflow.add_node("discover", discover_node)
+    workflow.add_node("search", search_node)
+    workflow.add_node("rank", rank_node)
     workflow.add_node("agent", agent_node)
     workflow.add_node("tools", tools_node)
     
-    workflow.add_edge(START, "agent")
+    workflow.add_edge(START, "plan")
+    workflow.add_conditional_edges("plan", should_search)
+    workflow.add_edge("discover", "search")
+    workflow.add_edge("search", "rank")
+    workflow.add_edge("rank", "agent")
+    
+    # After agent decides, it can either end or call tools
     workflow.add_conditional_edges("agent", should_continue)
     workflow.add_edge("tools", "agent")
     

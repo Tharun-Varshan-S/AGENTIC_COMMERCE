@@ -10,8 +10,6 @@ from app.schemas.agent import AgentDecisionResponse
 from app.services.core import CoreService
 
 from app.agent.schemas import ChatRequest, ChatResponse
-from app.agent.service import get_agent_response
-
 router = APIRouter()
 
 def get_core_service(db: Session = Depends(get_db)) -> CoreService:

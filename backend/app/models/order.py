@@ -20,12 +20,12 @@ class CartItem(BaseModel):
     __tablename__ = "cart_items"
 
     cart_id = Column(ForeignKey("carts.id"), nullable=False, index=True)
-    product_id = Column(ForeignKey("products.id"), nullable=False, index=True)
+    offer_id = Column(ForeignKey("offers.id"), nullable=False, index=True)
     quantity = Column(Integer, default=1, nullable=False)
     unit_price = Column(Numeric(10, 2), nullable=False)
 
     cart = relationship("Cart", back_populates="items")
-    product = relationship("Product", back_populates="cart_items")
+    offer = relationship("Offer", back_populates="cart_items")
 
 class Order(BaseModel):
     __tablename__ = "orders"
@@ -52,7 +52,7 @@ class OrderItem(BaseModel):
     __tablename__ = "order_items"
 
     order_id = Column(ForeignKey("orders.id"), nullable=False, index=True)
-    product_id = Column(ForeignKey("products.id"), nullable=False, index=True)
+    offer_id = Column(ForeignKey("offers.id"), nullable=False, index=True)
     product_name = Column(String, nullable=False)
     sku = Column(String, nullable=False)
     quantity = Column(Integer, default=1, nullable=False)
@@ -60,6 +60,7 @@ class OrderItem(BaseModel):
     subtotal = Column(Numeric(10, 2), nullable=False)
 
     order = relationship("Order", back_populates="items")
+    offer = relationship("Offer", back_populates="order_items")
 
 class Payment(BaseModel):
     __tablename__ = "payments"

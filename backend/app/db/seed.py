@@ -14,13 +14,14 @@ from app.models.agent import AgentDecision
 from app.models.audit import AuditLog
 from app.models.promotion import Promotion
 from app.models.user import User
+from app.models.offer import Offer
 from app.core.security import get_password_hash
 
 def seed_db():
     db: Session = SessionLocal()
     try:
         print("Cleaning up database...")
-        db.execute(text("TRUNCATE TABLE merchants, users CASCADE;"))
+        db.execute(text("TRUNCATE TABLE merchants, users, products, offers CASCADE;"))
         db.commit()
 
         print("Starting database seed...")
@@ -96,60 +97,89 @@ def seed_db():
         )
         db.add(rule)
 
-        # 3. Products
+        # 3. Products and Offers
         products_data = [
-            # Razorpay Merchant Products
-            {"sku": "G304", "name": "G304 Gaming Mouse", "category": "Gaming", "price": Decimal('1999.00'), "mrp": Decimal('2495.00'), "stock": 50, "source": "razorpay", "merchant_id": merchant_tn.id, "rating": Decimal('4.6'), "review_count": 342, "is_sponsored": True, "delivery_estimate": "Tomorrow", "image_url": "https://images.unsplash.com/photo-1527814050087-3793815479db?w=600&q=80"},
-            {"sku": "G502", "name": "G502 Gaming Mouse", "category": "Gaming", "price": Decimal('3499.00'), "mrp": Decimal('4999.00'), "stock": 25, "source": "razorpay", "merchant_id": merchant_tn.id, "rating": Decimal('4.8'), "review_count": 512, "is_sponsored": False, "delivery_estimate": "Tomorrow", "image_url": "https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=600&q=80"},
-            {"sku": "K01", "name": "K01 Mechanical Gaming Keyboard", "category": "Gaming", "price": Decimal('2499.00'), "mrp": Decimal('3999.00'), "stock": 30, "source": "razorpay", "merchant_id": merchant_tn.id, "rating": Decimal('4.5'), "review_count": 128, "is_sponsored": False, "delivery_estimate": "2 Days", "image_url": "https://images.unsplash.com/photo-1595225476474-87563907a212?w=600&q=80"},
+            {"sku": "G304", "name": "G304 Gaming Mouse", "category": "Gaming", "image_url": "https://images.unsplash.com/photo-1527814050087-3793815479db?w=600&q=80", "offers": [
+                {"merchant_id": merchant_tn.id, "price": Decimal('1999.00'), "mrp": Decimal('2495.00'), "stock": 50, "source": "razorpay", "is_sponsored": True, "delivery": "Tomorrow"},
+                {"merchant_id": merchant_az.id, "price": Decimal('2099.00'), "mrp": Decimal('2495.00'), "stock": 10, "source": "amazon", "is_sponsored": False, "delivery": "3 Days"}
+            ]},
+            {"sku": "G502", "name": "G502 Gaming Mouse", "category": "Gaming", "image_url": "https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=600&q=80", "offers": [
+                {"merchant_id": merchant_tn.id, "price": Decimal('3499.00'), "mrp": Decimal('4999.00'), "stock": 25, "source": "razorpay", "is_sponsored": False, "delivery": "Tomorrow"}
+            ]},
+            {"sku": "K01", "name": "K01 Mechanical Gaming Keyboard", "category": "Gaming", "image_url": "https://images.unsplash.com/photo-1595225476474-87563907a212?w=600&q=80", "offers": [
+                {"merchant_id": merchant_tn.id, "price": Decimal('2499.00'), "mrp": Decimal('3999.00'), "stock": 30, "source": "razorpay", "is_sponsored": False, "delivery": "2 Days"}
+            ]},
             
             # Smartphones
-            {"sku": "AMZ-PH1", "name": "Samsung Galaxy S24", "category": "Smartphone", "price": Decimal('74999.00'), "mrp": Decimal('79999.00'), "stock": 100, "source": "amazon", "merchant_id": merchant_az.id, "rating": Decimal('4.7'), "review_count": 1024, "is_sponsored": False, "delivery_estimate": "Tomorrow", "image_url": "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=600&q=80"},
-            {"sku": "AMZ-PH2", "name": "OnePlus 12R", "category": "Smartphone", "price": Decimal('39999.00'), "mrp": Decimal('42999.00'), "stock": 40, "source": "amazon", "merchant_id": merchant_az.id, "rating": Decimal('4.5'), "review_count": 890, "is_sponsored": False, "delivery_estimate": "Tomorrow", "image_url": "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=600&q=80"},
-            {"sku": "FLK-PH1", "name": "Google Pixel 8a", "category": "Smartphone", "price": Decimal('44999.00'), "mrp": Decimal('52999.00'), "stock": 30, "source": "flipkart", "merchant_id": merchant_fk.id, "rating": Decimal('4.4'), "review_count": 500, "is_sponsored": False, "delivery_estimate": "3 Days", "image_url": "https://images.unsplash.com/photo-1596742578443-7682ef5251cd?w=600&q=80"},
-            {"sku": "RZP-PH1", "name": "Nothing Phone (2a)", "category": "Smartphone", "price": Decimal('25999.00'), "mrp": Decimal('29999.00'), "stock": 50, "source": "razorpay", "merchant_id": merchant_tn.id, "rating": Decimal('4.3'), "review_count": 320, "is_sponsored": True, "delivery_estimate": "Tomorrow", "image_url": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&q=80"},
+            {"sku": "PH1-S24", "name": "Samsung Galaxy S24", "category": "Smartphone", "image_url": "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=600&q=80", "offers": [
+                {"merchant_id": merchant_az.id, "price": Decimal('74999.00'), "mrp": Decimal('79999.00'), "stock": 100, "source": "amazon", "is_sponsored": False, "delivery": "Tomorrow"},
+                {"merchant_id": merchant_fk.id, "price": Decimal('75999.00'), "mrp": Decimal('79999.00'), "stock": 45, "source": "flipkart", "is_sponsored": False, "delivery": "2 Days"}
+            ]},
+            {"sku": "PH2-12R", "name": "OnePlus 12R", "category": "Smartphone", "image_url": "https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=600&q=80", "offers": [
+                {"merchant_id": merchant_az.id, "price": Decimal('39999.00'), "mrp": Decimal('42999.00'), "stock": 40, "source": "amazon", "is_sponsored": False, "delivery": "Tomorrow"}
+            ]},
+            {"sku": "PH3-P8A", "name": "Google Pixel 8a", "category": "Smartphone", "image_url": "https://images.unsplash.com/photo-1596742578443-7682ef5251cd?w=600&q=80", "offers": [
+                {"merchant_id": merchant_fk.id, "price": Decimal('44999.00'), "mrp": Decimal('52999.00'), "stock": 30, "source": "flipkart", "is_sponsored": False, "delivery": "3 Days"}
+            ]},
+            {"sku": "PH4-N2A", "name": "Nothing Phone (2a)", "category": "Smartphone", "image_url": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&q=80", "offers": [
+                {"merchant_id": merchant_tn.id, "price": Decimal('25999.00'), "mrp": Decimal('29999.00'), "stock": 50, "source": "razorpay", "is_sponsored": True, "delivery": "Tomorrow"}
+            ]},
             
             # Audio / Headphones
-            {"sku": "AMZ-HD1", "name": "Sony WH-1000XM5", "category": "Audio", "price": Decimal('26990.00'), "mrp": Decimal('34990.00'), "stock": 80, "source": "amazon", "merchant_id": merchant_az.id, "rating": Decimal('4.8'), "review_count": 2100, "is_sponsored": False, "delivery_estimate": "2 Days", "image_url": "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?w=600&q=80"},
-            {"sku": "FLK-HD1", "name": "Boat Rockerz 450", "category": "Audio", "price": Decimal('1499.00'), "mrp": Decimal('3990.00'), "stock": 200, "source": "flipkart", "merchant_id": merchant_fk.id, "rating": Decimal('4.1'), "review_count": 5600, "is_sponsored": False, "delivery_estimate": "Tomorrow", "image_url": "https://images.unsplash.com/photo-1583394838336-acd977736f90?w=600&q=80"},
-            {"sku": "RZP-HD1", "name": "Noise Wireless Pro", "category": "Audio", "price": Decimal('1999.00'), "mrp": Decimal('2999.00'), "stock": 150, "source": "razorpay", "merchant_id": merchant_tn.id, "rating": Decimal('4.2'), "review_count": 450, "is_sponsored": True, "delivery_estimate": "Tomorrow", "image_url": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&q=80"}
+            {"sku": "HD1-XM5", "name": "Sony WH-1000XM5", "category": "Audio", "image_url": "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?w=600&q=80", "offers": [
+                {"merchant_id": merchant_az.id, "price": Decimal('26990.00'), "mrp": Decimal('34990.00'), "stock": 80, "source": "amazon", "is_sponsored": False, "delivery": "2 Days"}
+            ]},
+            {"sku": "HD2-R450", "name": "Boat Rockerz 450", "category": "Audio", "image_url": "https://images.unsplash.com/photo-1583394838336-acd977736f90?w=600&q=80", "offers": [
+                {"merchant_id": merchant_fk.id, "price": Decimal('1499.00'), "mrp": Decimal('3990.00'), "stock": 200, "source": "flipkart", "is_sponsored": False, "delivery": "Tomorrow"}
+            ]},
+            {"sku": "HD3-NWP", "name": "Noise Wireless Pro", "category": "Audio", "image_url": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&q=80", "offers": [
+                {"merchant_id": merchant_tn.id, "price": Decimal('1999.00'), "mrp": Decimal('2999.00'), "stock": 150, "source": "razorpay", "is_sponsored": True, "delivery": "Tomorrow"}
+            ]}
         ]
         
-        products = []
+        offers_list = []
         sponsored_products = []
         for pdata in products_data:
+            # Create the global product
             prod = Product(
-                merchant_id=pdata["merchant_id"],
                 sku=pdata["sku"],
                 name=pdata["name"],
                 category=pdata["category"],
-                price=pdata["price"],
-                mrp=pdata["mrp"],
                 image_url=pdata["image_url"],
-                cost_price=pdata["price"] * Decimal('0.60'), # 40% margin
-                currency="INR",
-                is_active=True,
-                source=pdata["source"],
-                rating=pdata["rating"],
-                review_count=pdata["review_count"],
-                is_sponsored=pdata["is_sponsored"],
-                delivery_estimate=pdata["delivery_estimate"]
+                rating=Decimal('4.5'), # Mock rating for global product
+                review_count=random.randint(100, 2000)
             )
             db.add(prod)
             db.flush()
-            products.append(prod)
             
-            if pdata["is_sponsored"]:
-                sponsored_products.append(prod)
-            
-            # Inventory
-            inv = Inventory(
-                product_id=prod.id,
-                quantity=pdata["stock"],
-                reserved_quantity=0,
-                reorder_level=10
-            )
-            db.add(inv)
+            # Create offers for this product
+            for odata in pdata["offers"]:
+                offer = Offer(
+                    product_id=prod.id,
+                    merchant_id=odata["merchant_id"],
+                    price=odata["price"],
+                    mrp=odata["mrp"],
+                    currency="INR",
+                    delivery_estimate=odata["delivery"],
+                    is_active=True,
+                    is_sponsored=odata["is_sponsored"],
+                    source=odata["source"]
+                )
+                db.add(offer)
+                db.flush()
+                offers_list.append(offer)
+                
+                if odata["is_sponsored"]:
+                    sponsored_products.append(prod)
+                
+                # Inventory belongs to the offer
+                inv = Inventory(
+                    offer_id=offer.id,
+                    quantity=odata["stock"],
+                    reserved_quantity=0,
+                    reorder_level=10
+                )
+                db.add(inv)
             
         # Add Promotions for sponsored products
         now = datetime.now()
@@ -197,13 +227,13 @@ def seed_db():
             for j in range(num_orders):
                 cust = random.choice(customers)
                 is_ai = random.choice([True, False])
-                prod1 = random.choice(products)
-                prod2 = random.choice(products) if random.random() > 0.7 else None
+                offer1 = random.choice(offers_list)
+                offer2 = random.choice(offers_list) if random.random() > 0.7 else None
                 
                 # Cart
                 cart = Cart(
                     customer_id=cust.id,
-                    merchant_id=merchant_tn.id,
+                    merchant_id=offer1.merchant_id,
                     status="COMPLETED",
                     currency="INR",
                     created_at=date_shift,
@@ -213,11 +243,11 @@ def seed_db():
                 db.flush()
 
                 # Items
-                total = prod1.price
-                items = [CartItem(cart_id=cart.id, product_id=prod1.id, quantity=1, unit_price=prod1.price, created_at=date_shift)]
-                if prod2:
-                    total += prod2.price
-                    items.append(CartItem(cart_id=cart.id, product_id=prod2.id, quantity=1, unit_price=prod2.price, created_at=date_shift))
+                total = offer1.price
+                items = [CartItem(cart_id=cart.id, offer_id=offer1.id, quantity=1, unit_price=offer1.price, created_at=date_shift)]
+                if offer2:
+                    total += offer2.price
+                    items.append(CartItem(cart_id=cart.id, offer_id=offer2.id, quantity=1, unit_price=offer2.price, created_at=date_shift))
                 db.add_all(items)
 
                 # Order
@@ -240,16 +270,16 @@ def seed_db():
                 db.flush()
 
                 # Agent Decision (if AI)
-                if is_ai and prod2:
+                if is_ai and offer2:
                     decision = AgentDecision(
                         customer_id=cust.id,
-                        merchant_id=merchant_tn.id,
+                        merchant_id=offer1.merchant_id,
                         session_id=str(uuid.uuid4()),
-                        intent=f"purchase_{prod1.category.lower()}",
-                        primary_product_id=prod1.id,
+                        intent=f"purchase_{offer1.product.category.lower()}",
+                        primary_product_id=offer1.product_id,
                         intervention_type="CROSS_SELL",
-                        recommended_product_id=prod2.id,
-                        reason=f"Customer looking at {prod1.name}, suggest {prod2.name}",
+                        recommended_product_id=offer2.product_id,
+                        reason=f"Customer looking at {offer1.product.name}, suggest {offer2.product.name}",
                         expected_order_value=total,
                         created_at=date_shift,
                         updated_at=date_shift

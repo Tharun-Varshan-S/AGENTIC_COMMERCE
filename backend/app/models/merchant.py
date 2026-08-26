@@ -10,9 +10,15 @@ class Merchant(BaseModel):
     email = Column(String, nullable=False)
     currency = Column(String, default="INR", nullable=False)
     is_active = Column(Boolean, default=True, nullable=False, index=True)
+    
+    # AI Commerce settings
+    ai_commerce_enabled = Column(Boolean, default=True, nullable=False)
+    ai_discount_percent = Column(Numeric(5, 2), default=0.0)
+    agent_purchases_enabled = Column(Boolean, default=True, nullable=False)
 
     # Relationships
     products = relationship("Product", back_populates="merchant", cascade="all, delete-orphan")
+    offers = relationship("Offer", back_populates="merchant", cascade="all, delete-orphan")
     customers = relationship("Customer", back_populates="merchant", cascade="all, delete-orphan")
     orders = relationship("Order", back_populates="merchant", cascade="all, delete-orphan")
     rules = relationship("MerchantRule", back_populates="merchant", cascade="all, delete-orphan")

@@ -12,36 +12,38 @@ from app.tools.multi_source_schemas import (
     CreateCheckoutSessionInput
 )
 from app.models.product import Product, Inventory
+from app.models.offer import Offer
 from app.models.promotion import Promotion
 from app.models.order import Cart, CartItem
 from app.services.core import CoreService
 
 def _search_source(db_session: Session, source: str, query: str = None, category: str = None, max_price: float = None, limit: int = 10):
-    stmt = select(Product).where(Product.source == source, Product.is_active == True)
+    stmt = select(Offer).join(Product).where(Offer.source == source, Offer.is_active == True)
     
     if query:
         stmt = stmt.where(Product.name.ilike(f"%{query}%"))
     if category:
         stmt = stmt.where(Product.category.ilike(f"%{category}%"))
     if max_price:
-        stmt = stmt.where(Product.price <= max_price)
+        stmt = stmt.where(Offer.price <= max_price)
         
-    products = db_session.scalars(stmt).all()
+    offers = db_session.scalars(stmt).all()
     
     results = []
-    for p in products[:limit]:
+    for o in offers[:limit]:
         results.append({
-            "id": str(p.id),
-            "source": p.source,
-            "name": p.name,
-            "category": p.category,
-            "price": float(p.price),
-            "mrp": float(p.mrp) if p.mrp else None,
-            "image_url": p.image_url,
-            "rating": float(p.rating) if p.rating else None,
-            "review_count": p.review_count,
-            "delivery_estimate": p.delivery_estimate,
-            "is_sponsored": p.is_sponsored
+            "id": str(o.product_id),
+            "offer_id": str(o.id),
+            "source": o.source,
+            "name": o.product.name,
+            "category": o.product.category,
+            "price": float(o.price),
+            "mrp": float(o.mrp) if o.mrp else None,
+            "image_url": o.product.image_url,
+            "rating": float(o.product.rating) if o.product.rating else None,
+            "review_count": o.product.review_count,
+            "delivery_estimate": o.delivery_estimate,
+            "is_sponsored": o.is_sponsored
         })
     return {"products": results, "source": source, "count": len(results)}
 
@@ -97,23 +99,31 @@ class GetProductDetailsTool(CommerceTool):
     
     def execute(self, db_session: Session, **kwargs):
         product_id = kwargs.get("product_id")
+        
+        # We need to find the best offer or all offers for the product.
+        # Let's just return the product and its offers.
         p = db_session.get(Product, product_id)
         if not p:
             raise ToolError("PRODUCT_NOT_FOUND", "Product does not exist.")
             
         return {
             "id": str(p.id),
-            "source": p.source,
             "name": p.name,
             "description": p.description,
             "category": p.category,
             "brand": p.brand,
-            "price": float(p.price),
             "rating": float(p.rating) if p.rating else None,
             "review_count": p.review_count,
-            "delivery_estimate": p.delivery_estimate,
-            "is_sponsored": p.is_sponsored,
-            "product_url": p.product_url
+            "product_url": p.product_url,
+            "offers": [
+                {
+                    "offer_id": str(o.id),
+                    "source": o.source,
+                    "price": float(o.price),
+                    "delivery_estimate": o.delivery_estimate,
+                    "is_sponsored": o.is_sponsored
+                } for o in p.offers if o.is_active
+            ]
         }
 
 class CheckProductAvailabilityTool(CommerceTool):
@@ -123,12 +133,23 @@ class CheckProductAvailabilityTool(CommerceTool):
     
     def execute(self, db_session: Session, **kwargs):
         product_id = kwargs.get("product_id")
-        inv = db_session.scalars(select(Inventory).where(Inventory.product_id == product_id)).first()
-        if not inv:
-            return {"available": False, "stock": 0}
+        # For CheckProductAvailability we probably need offer_id, but if given product_id, check any active offer
+        # Ideally, we should check by offer_id. We will check all active offers.
+        offers = db_session.scalars(select(Offer).where(Offer.product_id == product_id, Offer.is_active == True)).all()
         
-        available = (inv.quantity - inv.reserved_quantity) > 0
-        return {"available": available, "stock": inv.quantity - inv.reserved_quantity}
+        availability_list = []
+        for o in offers:
+            inv = db_session.scalars(select(Inventory).where(Inventory.offer_id == o.id)).first()
+            if inv:
+                available = (inv.quantity - inv.reserved_quantity) > 0
+                availability_list.append({
+                    "offer_id": str(o.id),
+                    "source": o.source,
+                    "available": available,
+                    "stock": inv.quantity - inv.reserved_quantity
+                })
+        
+        return {"availability": availability_list}
 
 class GetMerchantPromotionTool(CommerceTool):
     name = "get_merchant_promotion"
@@ -176,44 +197,46 @@ class RankProductsTool(CommerceTool):
         product_ids = kwargs.get("product_ids", [])
         reqs = kwargs.get("customer_requirements", "").lower()
         
-        products = db_session.scalars(select(Product).where(Product.id.in_(product_ids))).all()
+        # Rank offers for these products
+        offers = db_session.scalars(select(Offer).join(Product).where(Offer.product_id.in_(product_ids), Offer.is_active == True)).all()
         
         ranked = []
-        for p in products:
+        for o in offers:
             score = 50 # Base score
             
             # Very simple heuristic scoring for the demo
-            if p.rating:
-                score += float(p.rating) * 5
+            if o.product.rating:
+                score += float(o.product.rating) * 5
                 
-            if "cheap" in reqs and p.price < 5000:
+            if "cheap" in reqs and o.price < 5000:
                 score += 15
                 
-            if "tomorrow" in reqs and "Tomorrow" in (p.delivery_estimate or ""):
+            if "tomorrow" in reqs and "Tomorrow" in (o.delivery_estimate or ""):
                 score += 20
                 
             # Promotion influence is bounded
             is_promoted = False
-            if p.is_sponsored:
+            if o.is_sponsored:
                 is_promoted = True
                 score += 10 # Bounded promotion bump
                 
             ranked.append({
-                "id": str(p.id),
-                "name": p.name,
-                "source": p.source,
+                "id": str(o.product_id),
+                "offer_id": str(o.id),
+                "name": o.product.name,
+                "source": o.source,
                 "score": score,
                 "is_sponsored": is_promoted,
-                "price": float(p.price),
-                "mrp": float(p.mrp) if p.mrp else None,
-                "image_url": p.image_url,
-                "rating": float(p.rating) if p.rating else 0,
-                "delivery_estimate": p.delivery_estimate
+                "price": float(o.price),
+                "mrp": float(o.mrp) if o.mrp else None,
+                "image_url": o.product.image_url,
+                "rating": float(o.product.rating) if o.product.rating else 0,
+                "delivery_estimate": o.delivery_estimate
             })
             
         # Sort by score descending
         ranked.sort(key=lambda x: x["score"], reverse=True)
-        return {"ranked_products": ranked}
+        return {"ranked_offers": ranked}
 
 class CreateCheckoutSessionTool(CommerceTool):
     name = "create_checkout_session"
@@ -225,11 +248,13 @@ class CreateCheckoutSessionTool(CommerceTool):
         merchant_id = kwargs.get("merchant_id")
         customer_id = kwargs.get("customer_id")
         product_id = kwargs.get("product_id")
+        # In reality, the AI agent needs to pick a specific offer_id to checkout.
+        # Since the tool schema asks for product_id, we will resolve it to the best offer for the given merchant_id.
         quantity = kwargs.get("quantity", 1)
         
-        p = db_session.get(Product, product_id)
-        if not p:
-            raise ToolError("PRODUCT_NOT_FOUND", "Product not found")
+        offer = db_session.scalars(select(Offer).where(Offer.product_id == product_id, Offer.merchant_id == merchant_id)).first()
+        if not offer:
+            raise ToolError("OFFER_NOT_FOUND", "Offer for this product and merchant not found")
             
         # Get or create cart
         cart = db_session.scalars(select(Cart).where(Cart.customer_id == customer_id, Cart.status == "ACTIVE")).first()
@@ -239,7 +264,7 @@ class CreateCheckoutSessionTool(CommerceTool):
             db_session.flush()
             
         # Add item
-        item = CartItem(cart_id=cart.id, product_id=product_id, quantity=quantity, unit_price=p.price)
+        item = CartItem(cart_id=cart.id, offer_id=offer.id, quantity=quantity, unit_price=offer.price)
         db_session.add(item)
         db_session.flush()
         
@@ -247,5 +272,5 @@ class CreateCheckoutSessionTool(CommerceTool):
         return {
             "checkout_ready": True,
             "cart_id": str(cart.id),
-            "message": f"Product {p.name} added to cart and ready for checkout."
+            "message": f"Product {offer.product.name} added to cart and ready for checkout."
         }

@@ -1,8 +1,5 @@
 from app.tools.registry import registry
 from app.tools.multi_source_tools import (
-    SearchAmazonCatalogTool,
-    SearchFlipkartCatalogTool,
-    SearchRazorpayMerchantsTool,
     GetProductDetailsTool,
     CheckProductAvailabilityTool,
     GetMerchantPromotionTool,
@@ -11,9 +8,6 @@ from app.tools.multi_source_tools import (
     CreateCheckoutSessionTool
 )
 
-registry.register(SearchAmazonCatalogTool())
-registry.register(SearchFlipkartCatalogTool())
-registry.register(SearchRazorpayMerchantsTool())
 registry.register(GetProductDetailsTool())
 registry.register(CheckProductAvailabilityTool())
 registry.register(GetMerchantPromotionTool())
