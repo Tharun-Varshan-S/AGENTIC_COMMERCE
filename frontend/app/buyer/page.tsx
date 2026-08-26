@@ -32,6 +32,9 @@ import { ProductDetails } from "@/components/buyer/product-details";
 import { CartDrawer } from "@/components/buyer/cart-drawer";
 import { RecommendationCard } from "@/components/buyer/recommendation-card";
 
+import { AgentOrchestration, OrchestrationEvent } from "@/components/buyer/agent-orchestration";
+
+// Initialize
 export default function BuyerPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [merchantId, setMerchantId] = useState<string>("");
@@ -41,6 +44,7 @@ export default function BuyerPage() {
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [orchestrationEvents, setOrchestrationEvents] = useState<OrchestrationEvent[]>([]);
   
   const [products, setProducts] = useState<any[]>([]);
   const [isProductsLoading, setIsProductsLoading] = useState(false);
@@ -130,9 +134,18 @@ export default function BuyerPage() {
     setIsChatLoading(true);
     setIsProductsLoading(true);
     setError(null);
+    setOrchestrationEvents([]);
 
     try {
-      const response = await chatWithAgent(sessionId, merchantId, selectedCustomerId, text);
+      const response = await chatWithAgent(
+        sessionId, 
+        merchantId, 
+        selectedCustomerId, 
+        text,
+        (event) => {
+          setOrchestrationEvents(prev => [...prev, event]);
+        }
+      );
       
       // Update UI state from structured agent response
       if (response.products) {
@@ -357,6 +370,15 @@ export default function BuyerPage() {
               />
             )}
           </div>
+        </div>
+
+        {/* Agent Orchestration Area */}
+        <div className="hidden lg:block w-[320px] h-full shrink-0 bg-slate-900 border-l border-slate-800">
+          <AgentOrchestration 
+            events={orchestrationEvents} 
+            isExecuting={isChatLoading}
+            error={null} 
+          />
         </div>
       </div>
 

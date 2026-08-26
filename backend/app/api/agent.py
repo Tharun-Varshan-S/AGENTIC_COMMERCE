@@ -43,12 +43,16 @@ def get_agent_decisions(
         
     return results
 
-@router.post("/chat", response_model=ChatResponse)
+from fastapi.responses import StreamingResponse
+from app.agent.service import get_agent_response_stream
+
+@router.post("/chat")
 def chat_with_agent(
     request: ChatRequest,
     db: Session = Depends(get_db)
 ):
     """
-    Interact with the autonomous AI Commerce Agent.
+    Interact with the autonomous AI Commerce Agent (Streaming).
     """
-    return get_agent_response(request, db)
+    return StreamingResponse(get_agent_response_stream(request, db), media_type="application/x-ndjson")
+

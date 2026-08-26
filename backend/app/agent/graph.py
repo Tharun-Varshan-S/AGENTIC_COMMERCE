@@ -27,8 +27,16 @@ def agent_node(state: AgentState, config: RunnableConfig):
     if state.get("tool_call_count", 0) >= MAX_TOOL_CALLS:
         return {"messages": [AIMessage(content="I wasn't able to fully resolve this — could you clarify what you're looking for?")]}
         
-    response = llm.invoke(messages)
-    return {"messages": [response]}
+    try:
+        response = llm.invoke(messages)
+        return {"messages": [response]}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        error_msg = str(e).lower()
+        if "429" in error_msg or "resource_exhausted" in error_msg or "quota" in error_msg:
+            return {"messages": [AIMessage(content="The AI agent is temporarily unavailable because the Gemini API quota has been exhausted. Please retry after a few moments.")]}
+        return {"messages": [AIMessage(content=f"An unexpected error occurred during agent execution: {str(e)}")]}
 
 def tools_node(state: AgentState, config: RunnableConfig):
     last_message = state["messages"][-1]
