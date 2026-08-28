@@ -9,6 +9,10 @@ export interface OrchestrationEvent {
   tool_results?: any[];
   message?: string;
   timestamp: number;
+  intent?: any;
+  merchants?: string[];
+  products_found?: number;
+  ranked_count?: number;
 }
 
 interface AgentOrchestrationProps {
@@ -27,10 +31,44 @@ export function AgentOrchestration({ events, isExecuting, error }: AgentOrchestr
 
   events.forEach((ev) => {
     if (ev.type === "orchestration") {
-      if (ev.node === "agent") {
+      if (ev.node === "plan") {
+        const intent = ev.intent || {};
+        steps.push({
+          label: "Intent & Planning",
+          status: "completed",
+          details: [
+            `Search product: ${intent.query || 'N/A'}`,
+            `Maximum price: ${intent.max_price ? '₹' + intent.max_price : 'N/A'}`,
+            `Merchant scope: all available`
+          ]
+        });
+      } else if (ev.node === "discover") {
+        // Handled as part of search/commerce agent
+      } else if (ev.node === "search") {
+        steps.push({
+          label: "Search/Commerce Agent",
+          status: "completed",
+          details: [
+            "Searching application catalog",
+            "Amazon",
+            "Flipkart",
+            "Razorpay-connected merchants"
+          ]
+        });
+        steps.push({
+          label: "Products Found",
+          status: "completed",
+          details: [`Found ${ev.products_found || 0} products`]
+        });
+      } else if (ev.node === "rank") {
+        steps.push({
+          label: "Ranking",
+          status: "completed"
+        });
+      } else if (ev.node === "agent") {
         if (ev.tool_calls && ev.tool_calls.length > 0) {
           steps.push({
-            label: "Intent & Planning",
+            label: "Agent Actions",
             status: "completed",
             details: ev.tool_calls.map(tc => `Planning to use: ${tc.name.replace(/_/g, ' ')}`)
           });
@@ -106,7 +144,7 @@ export function AgentOrchestration({ events, isExecuting, error }: AgentOrchestr
                 {idx !== steps.length - 1 && (
                   <div className="absolute top-6 left-2.5 w-px h-[calc(100%+8px)] bg-slate-700 -z-10" />
                 )}
-                
+
                 {/* Icon */}
                 <div className="bg-slate-900 z-10 pt-0.5">
                   {step.status === 'completed' ? (
@@ -122,14 +160,13 @@ export function AgentOrchestration({ events, isExecuting, error }: AgentOrchestr
 
                 {/* Content */}
                 <div className="flex-1 pb-1">
-                  <div className={`font-medium ${
-                    step.status === 'completed' ? 'text-slate-200' :
-                    step.status === 'running' ? 'text-indigo-300' :
-                    step.status === 'error' ? 'text-red-400' : 'text-slate-500'
-                  }`}>
+                  <div className={`font-medium ${step.status === 'completed' ? 'text-slate-200' :
+                      step.status === 'running' ? 'text-indigo-300' :
+                        step.status === 'error' ? 'text-red-400' : 'text-slate-500'
+                    }`}>
                     {step.label}
                   </div>
-                  
+
                   {step.details && step.details.length > 0 && (
                     <div className="mt-2 space-y-1.5">
                       {step.details.map((detail, dIdx) => (

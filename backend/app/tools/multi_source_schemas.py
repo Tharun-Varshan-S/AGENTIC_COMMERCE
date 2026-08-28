@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from decimal import Decimal
+from pydantic import field_validator
+import re
 
 class SearchSourceCatalogInput(BaseModel):
     query: Optional[str] = None
@@ -9,6 +11,13 @@ class SearchSourceCatalogInput(BaseModel):
     max_price: Optional[Decimal] = None
     limit: Optional[int] = Field(default=10, le=50)
     # The source is implicit in the tool itself (e.g. search_amazon_catalog)
+
+    @field_validator('query', 'category')
+    @classmethod
+    def sanitize_input(cls, v: Optional[str]) -> Optional[str]:
+        if v:
+            return re.sub(r'[;\'\"\\=]', '', v)
+        return v
 
 class GetProductDetailsInput(BaseModel):
     source: str

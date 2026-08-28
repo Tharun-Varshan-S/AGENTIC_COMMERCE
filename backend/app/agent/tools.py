@@ -44,8 +44,26 @@ def _adapt_tool(commerce_tool: CommerceTool) -> StructuredTool:
         # The LLM will provide 'reason', but we don't pass it to the commerce tool logic.
         reason = kwargs.pop("reason", "No reason provided.")
         
+        import hashlib
+        import json
+        from app.models.audit import IdempotencyKey
+        
         # We can also extract session_id, merchant_id, customer_id from config if needed
         # but typically the LLM passes required parameters.
+        thread_id = config.get("configurable", {}).get("thread_id", "default")
+        
+        # Generate idempotency key based on thread_id, tool name, and arguments
+        kwargs_hash = hashlib.sha256(json.dumps(kwargs, sort_keys=True, default=str).encode()).hexdigest()
+        idem_key = f"{thread_id}_{commerce_tool.name}_{kwargs_hash}"
+        
+        # Check if already executed
+        existing = db.query(IdempotencyKey).filter_by(key=idem_key).first()
+        if existing:
+            return {
+                "result": existing.result_json,
+                "reason": reason,
+                "note": "Returned cached result due to idempotency."
+            }
         
         # Execute the commerce tool
         result = commerce_tool.execute(db_session=db, **kwargs)
@@ -54,6 +72,15 @@ def _adapt_tool(commerce_tool: CommerceTool) -> StructuredTool:
             dumped_result = result.model_dump()
         else:
             dumped_result = result
+            
+        # Save idempotency key
+        idem_record = IdempotencyKey(
+            key=idem_key,
+            action=commerce_tool.name,
+            result_json=dumped_result
+        )
+        db.add(idem_record)
+        db.commit()
             
         return {
             "result": dumped_result,

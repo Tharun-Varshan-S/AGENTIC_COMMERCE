@@ -194,7 +194,7 @@ export function CartDrawer({
                       onClick={onInitiatePurchase}
                       className="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-sm shadow-indigo-200 transition-colors flex items-center justify-center"
                     >
-                      {policyDecision?.decision === 'REQUIRES_CONSENT' ? 'Confirm Purchase' : 'Purchase'}
+                      {policyDecision?.decision === 'REQUIRES_CONSENT' ? `Approve & Pay ${formatPrice(cart.subtotal || 0)}` : `Approve & Pay ${formatPrice(cart.subtotal || 0)}`}
                     </button>
                 )}
                 {policyDecision?.decision === 'REQUIRES_CONSENT' && (

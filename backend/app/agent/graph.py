@@ -29,16 +29,11 @@ def plan_node(state: AgentState, config: RunnableConfig):
     llm = get_llm()
     structured_llm = llm.with_structured_output(ShoppingIntent)
     
-    try:
-        intent = structured_llm.invoke([
-            SystemMessage(content="You are a shopping assistant planner. Extract the user's shopping intent. If the user is just saying hello or asking a general question, set is_search to false."),
-            last_msg
-        ])
-        return {"shopping_intent": intent.model_dump()}
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {}
+    intent = structured_llm.invoke([
+        SystemMessage(content="You are a shopping assistant planner. Extract the user's shopping intent. If the user is just saying hello or asking a general question, set is_search to false."),
+        last_msg
+    ])
+    return {"shopping_intent": intent.model_dump()}
 
 def discover_node(state: AgentState, config: RunnableConfig):
     """Finds all capabilities and merchants available."""
@@ -112,8 +107,10 @@ def agent_node(state: AgentState, config: RunnableConfig):
     if intent and intent.get("is_search"):
         products = state.get("products", [])
         if products:
-            context_msg = f"Search Results Context: Found {len(products)} products across merchants based on your plan. Summarize these briefly to the user. Results: {json.dumps(products)}"
-            messages.append(SystemMessage(content=context_msg))
+            context_msg = f"Search Results Context: The search pipeline was executed. Found {len(products)} products across merchants based on your plan. Summarize these briefly to the user. Results: {json.dumps(products)}"
+        else:
+            context_msg = "Search Results Context: The search pipeline was executed but NO products were found in the catalog matching the user's criteria. Inform the user that no products were found and ask them to adjust their search terms or budget. DO NOT attempt to search manually using tools."
+        messages.append(SystemMessage(content=context_msg))
             
     # Check max tool calls
     if state.get("tool_call_count", 0) >= MAX_TOOL_CALLS:
@@ -182,9 +179,6 @@ def tools_node(state: AgentState, config: RunnableConfig):
             elif name == "validate_policy":
                 state_updates["policy"] = result
                 state_updates["requires_consent"] = result.get("requires_consent", False) if isinstance(result, dict) else False
-            elif name == "create_razorpay_order":
-                if isinstance(result, dict) and "error" not in result:
-                    state_updates["payment_order"] = result
                 
             content = json.dumps(output)
             

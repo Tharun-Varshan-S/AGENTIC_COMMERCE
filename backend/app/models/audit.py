@@ -17,3 +17,10 @@ class AuditLog(BaseModel):
     merchant = relationship("Merchant", back_populates="audit_logs")
     customer = relationship("Customer", viewonly=True)
     order = relationship("Order", back_populates="audit_logs")
+
+class IdempotencyKey(BaseModel):
+    __tablename__ = "idempotency_keys"
+
+    key = Column(String, unique=True, index=True, nullable=False)
+    action = Column(String, nullable=False)
+    result_json = Column("result", JSONB)

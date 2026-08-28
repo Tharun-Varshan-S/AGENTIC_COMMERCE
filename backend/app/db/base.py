@@ -6,8 +6,8 @@ from app.models.offer import Offer
 from app.models.customer import Customer, CustomerEvent
 from app.models.order import Cart, CartItem, Order, OrderItem, Payment
 from app.models.agent import AgentDecision
-from app.models.audit import AuditLog
+from app.models.audit import AuditLog, IdempotencyKey
 from app.models.consent import ConsentRequest
 from app.models.promotion import Promotion
-from app.models.user import User
+from app.models.user import User, UserSpendingLimit
 from app.models.webhook import WebhookEvent

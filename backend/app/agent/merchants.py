@@ -39,14 +39,25 @@ class BaseDBMerchant(Merchant):
     def search_catalog(self, db_session: Session, query: str, category: Optional[str] = None, max_price: Optional[float] = None, limit: int = 10) -> List[NormalizedProduct]:
         stmt = select(Offer).join(Product).where(Offer.source == self.source_id, Offer.is_active == True)
         
-        if query:
-            stmt = stmt.where(Product.name.ilike(f"%{query}%"))
-        if category:
-            stmt = stmt.where(Product.category.ilike(f"%{category}%"))
+        from sqlalchemy import or_
+        if query and category:
+            stmt = stmt.where(
+                or_(
+                    Product.name.ilike(f"%{query}%"),
+                    Product.name.ilike(f"%{category}%"),
+                    Product.category.ilike(f"%{query}%"),
+                    Product.category.ilike(f"%{category}%")
+                )
+            )
+        elif query:
+            stmt = stmt.where(or_(Product.name.ilike(f"%{query}%"), Product.category.ilike(f"%{query}%")))
+        elif category:
+            stmt = stmt.where(or_(Product.name.ilike(f"%{category}%"), Product.category.ilike(f"%{category}%")))
         if max_price:
             stmt = stmt.where(Offer.price <= max_price)
             
-        offers = db_session.scalars(stmt).limit(limit).all()
+        stmt = stmt.limit(limit)
+        offers = db_session.scalars(stmt).all()
         
         normalized = []
         for o in offers:

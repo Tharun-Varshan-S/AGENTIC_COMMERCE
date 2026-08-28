@@ -27,6 +27,11 @@ class CartService:
             unit_price = item.unit_price
             subtotal += (unit_price * item.quantity)
             
+            # Get the best offer or default
+            offer = None
+            if hasattr(product, 'offers') and product.offers:
+                offer = product.offers[0]
+                
             prod_resp = ProductResponse(
                 id=product.id,
                 created_at=product.created_at,
@@ -37,10 +42,10 @@ class CartService:
                 description=product.description,
                 category=product.category,
                 brand=product.brand,
-                price=product.price,
-                cost_price=product.cost_price,
-                currency=product.currency,
-                is_active=product.is_active,
+                price=offer.price if offer else 0.0,
+                cost_price=None,
+                currency="INR",
+                is_active=offer.is_active if offer else True,
                 metadata_json=product.metadata_json,
                 inventory=None
             )
@@ -97,7 +102,16 @@ class CartService:
             raise HTTPException(status_code=400, detail="Cart is not active")
 
         product = self.core_repo.get_product(product_id)
-        if not product or not product.is_active:
+        if not product:
+            raise HTTPException(status_code=400, detail="Product is unavailable")
+            
+        offer = None
+        if hasattr(product, 'offers') and product.offers:
+            active_offers = [o for o in product.offers if o.is_active]
+            if active_offers:
+                offer = active_offers[0]
+                
+        if not offer:
             raise HTTPException(status_code=400, detail="Product is unavailable")
             
         inventory = self.core_repo.get_inventory(product_id)
@@ -117,7 +131,7 @@ class CartService:
         if item:
             self.repo.update_item_quantity(item, current_quantity + quantity)
         else:
-            self.repo.add_item(cart_id, product_id, quantity, product.price)
+            self.repo.add_item(cart_id, product_id, quantity, offer.price)
             
         self.db.commit()
         self.db.refresh(cart)

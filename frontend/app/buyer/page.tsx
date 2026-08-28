@@ -165,9 +165,9 @@ export default function BuyerPage() {
       if (response.policy) {
         setPolicyDecision(response.policy);
       }
-      
-      if (response.payment_order) {
-        handleRazorpayCheckout(response.payment_order);
+      if (response.checkout_session && response.checkout_session.checkout_ready) {
+        await reloadCart();
+        setIsCartOpen(true);
       }
       
       setMessages(prev => [...prev, {

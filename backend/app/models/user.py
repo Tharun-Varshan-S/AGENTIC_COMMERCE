@@ -14,3 +14,11 @@ class User(BaseModel):
 
     # Relationships
     merchant = relationship("Merchant", backref="users")
+
+class UserSpendingLimit(BaseModel):
+    __tablename__ = "user_spending_limits"
+    
+    user_id = Column(ForeignKey("users.id"), unique=True, index=True, nullable=False)
+    daily_limit = Column(String, nullable=False, default="10000") # stored as string to match decimal patterns if needed, or integer
+    
+    user = relationship("User", backref="spending_limit")

@@ -5,6 +5,7 @@ class RazorpayOrderRequest(BaseModel):
     merchant_id: str
     customer_id: str
     cart_id: str
+    human_approval: bool = False
     source: str = "DIRECT"
     agent_trace: Optional[dict] = None
 

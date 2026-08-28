@@ -52,6 +52,9 @@ class PolicyService:
             ConsentRequest.amount == cart_total
         ).first()
 
+        from app.models.user import UserSpendingLimit
+        spending_limit = self.db.query(UserSpendingLimit).filter(UserSpendingLimit.user_id == customer.user_id).first() if hasattr(customer, 'user_id') else None
+        
         context = {
             "merchant": merchant,
             "customer": customer,
@@ -61,7 +64,8 @@ class PolicyService:
             "products": products,
             "inventories": inventories,
             "cart_total": cart_total,
-            "has_approved_consent": approved_consent is not None
+            "has_approved_consent": approved_consent is not None,
+            "spending_limit": spending_limit
         }
         
         return self.evaluator.evaluate(context)

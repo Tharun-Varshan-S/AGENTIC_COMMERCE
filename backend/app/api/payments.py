@@ -10,6 +10,8 @@ router = APIRouter()
 
 @router.post("/create-order")
 def create_order(request: RazorpayOrderRequest, db: Session = Depends(get_db)):
+    if not request.human_approval:
+        raise HTTPException(status_code=400, detail="Human approval is required to create a payment order.")
     try:
         res = create_payment_order(
             db, 

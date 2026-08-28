@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from uuid import UUID
 from decimal import Decimal
+from pydantic import field_validator
+import re
 
 # Tool 1: search_catalog
 class SearchCatalogInput(BaseModel):
@@ -10,6 +12,13 @@ class SearchCatalogInput(BaseModel):
     category: Optional[str] = None
     max_price: Optional[Decimal] = None
     limit: Optional[int] = Field(default=10, le=50)
+
+    @field_validator('query', 'category')
+    @classmethod
+    def sanitize_input(cls, v: Optional[str]) -> Optional[str]:
+        if v:
+            return re.sub(r'[;\'\"\\=]', '', v)
+        return v
 
 # Tool 2: get_product
 class GetProductInput(BaseModel):

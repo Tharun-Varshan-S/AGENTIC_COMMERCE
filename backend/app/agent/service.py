@@ -33,11 +33,23 @@ def get_agent_response_stream(request: ChatRequest, db_session: Session):
                     "status": "completed"
                 }
                 
+                if not isinstance(state_update, dict):
+                    continue
+                    
                 # Extract tool calls from the agent node if present
                 if node_name == "agent" and "messages" in state_update:
                     last_msg = state_update["messages"][-1]
                     if getattr(last_msg, "tool_calls", None):
                         event_data["tool_calls"] = last_msg.tool_calls
+                        
+                if node_name == "plan" and "shopping_intent" in state_update:
+                    event_data["intent"] = state_update["shopping_intent"]
+                elif node_name == "discover" and "discovered_merchants" in state_update:
+                    event_data["merchants"] = state_update["discovered_merchants"]
+                elif node_name == "search" and "normalized_products" in state_update:
+                    event_data["products_found"] = len(state_update["normalized_products"] or [])
+                elif node_name == "rank" and "products" in state_update:
+                    event_data["ranked_count"] = len(state_update["products"] or [])
                         
                 # Extract tool executions if present
                 if node_name == "tools" and "messages" in state_update:
@@ -90,8 +102,7 @@ def get_agent_response_stream(request: ChatRequest, db_session: Session):
         "cart": full_state.get("cart"),
         "checkout_session": full_state.get("checkout_session"),
         "policy": full_state.get("policy"),
-        "requires_consent": full_state.get("requires_consent", False),
-        "payment_order": full_state.get("payment_order")
+        "requires_consent": full_state.get("requires_consent", False)
     }
     
     yield json.dumps({"type": "final_result", "data": response_data}) + "\n"

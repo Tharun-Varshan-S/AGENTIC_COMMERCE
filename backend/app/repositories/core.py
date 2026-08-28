@@ -28,8 +28,6 @@ class CoreRepository:
             query = query.filter(Product.merchant_id == merchant_id)
         if category:
             query = query.filter(Product.category == category)
-        if is_active is not None:
-            query = query.filter(Product.is_active == is_active)
         if search:
             search_term = f"%{search}%"
             query = query.filter(or_(
@@ -37,15 +35,21 @@ class CoreRepository:
                 Product.description.ilike(search_term),
                 Product.sku.ilike(search_term)
             ))
-        if max_price is not None:
-            query = query.filter(Product.price <= max_price)
+        if is_active is not None or max_price is not None:
+            from app.models.offer import Offer
+            query = query.join(Offer, Offer.product_id == Product.id)
+            if is_active is not None:
+                query = query.filter(Offer.is_active == is_active)
+            if max_price is not None:
+                query = query.filter(Offer.price <= max_price)
         return self.db.scalars(query).all()
 
     def get_product(self, product_id: UUID) -> Optional[Product]:
         return self.db.get(Product, product_id)
 
     def get_inventory(self, product_id: UUID) -> Optional[Inventory]:
-        return self.db.scalar(select(Inventory).filter(Inventory.product_id == product_id))
+        from app.models.offer import Offer
+        return self.db.scalar(select(Inventory).join(Offer, Inventory.offer_id == Offer.id).filter(Offer.product_id == product_id))
     
     def get_all_inventory(self) -> List[Inventory]:
         return self.db.scalars(select(Inventory)).all()

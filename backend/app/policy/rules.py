@@ -133,3 +133,18 @@ class ConsentRequirementRule(PolicyRule):
                 message="Merchant requires explicit consent for transactions."
             )]
         return []
+
+class UserSpendingLimitRule(PolicyRule):
+    def evaluate(self, context: Dict[str, Any]) -> List[PolicyReason]:
+        cart_total: Decimal = context["cart_total"]
+        spending_limit = context.get("spending_limit")
+        
+        if spending_limit and Decimal(spending_limit.daily_limit) > 0:
+            # We would typically fetch today's total spending here from the db,
+            # but for this MVP rule we just check if this single transaction exceeds the daily limit.
+            if cart_total > Decimal(spending_limit.daily_limit):
+                return [PolicyReason(
+                    code="SPENDING_LIMIT_EXCEEDED",
+                    message=f"Transaction exceeds the user's daily spending limit of {spending_limit.daily_limit}."
+                )]
+        return []
