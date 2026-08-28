@@ -3,13 +3,52 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from app.models.order import Cart, Order, OrderItem, Payment
+from app.models.order import Cart, CartItem, Order, OrderItem, Payment
+from app.models.offer import Offer
 from app.models.webhook import WebhookEvent
 from app.models.audit import AuditLog
 from app.policy.service import PolicyService
 from app.policy.schemas import PolicyEvaluationRequest
 from app.payment.razorpay_client import create_order as create_rp_order, verify_payment_signature, RAZORPAY_KEY_ID
 from app.payment.exceptions import PaymentStateError, AmountMismatchError
+
+from app.payment.schemas import DirectCheckoutRequest
+
+def create_direct_payment_order(db: Session, req: DirectCheckoutRequest) -> dict:
+    # 1. Fetch offer and validate
+    offer = db.query(Offer).filter(Offer.id == req.offer_id, Offer.product_id == req.product_id).first()
+    if not offer:
+        raise PaymentStateError("Offer not found or mismatch.")
+    
+    # 2. Create an ephemeral Cart for direct checkout
+    cart = Cart(
+        customer_id=req.customer_id,
+        merchant_id=req.merchant_id,
+        status="ACTIVE",
+        currency="INR"
+    )
+    db.add(cart)
+    db.flush()
+    
+    # 3. Add CartItem
+    item = CartItem(
+        cart_id=cart.id,
+        offer_id=offer.id,
+        quantity=req.quantity,
+        unit_price=offer.price
+    )
+    db.add(item)
+    db.flush()
+    
+    # 4. Delegate to the existing robust checkout engine
+    return create_payment_order(
+        db=db,
+        merchant_id=req.merchant_id,
+        customer_id=req.customer_id,
+        cart_id=str(cart.id),
+        source=req.source,
+        agent_trace=req.agent_trace
+    )
 
 def create_payment_order(db: Session, merchant_id: str, customer_id: str, cart_id: str, source: str = "DIRECT", agent_trace: dict = None) -> dict:
     # 1. Load the cart
@@ -74,11 +113,14 @@ def create_payment_order(db: Session, merchant_id: str, customer_id: str, cart_i
 
     # 5. Snapshot items
     for item in cart.items:
+        offer = item.offer
+        product = offer.product if offer else None
+        
         order_item = OrderItem(
             order_id=order.id,
-            product_id=item.product_id,
-            product_name=item.product.name,
-            sku=item.product.sku,
+            offer_id=item.offer_id,
+            product_name=product.name if product else "Unknown",
+            sku=product.sku if product else "N/A",
             quantity=item.quantity,
             unit_price=item.unit_price,
             subtotal=item.unit_price * item.quantity
@@ -250,10 +292,10 @@ def _finalize_order(db: Session, order: Order, payment: Payment):
     # 2. Decrement inventory
     from app.models.product import Inventory
     for item in order.items:
-        inv = db.query(Inventory).filter_by(product_id=item.product_id).with_for_update().first()
+        inv = db.query(Inventory).filter_by(offer_id=item.offer_id).with_for_update().first()
         if not inv or inv.quantity < item.quantity:
             # We fail finalization if oversold
-            raise PaymentStateError(f"Insufficient inventory for product {item.product_id}")
+            raise PaymentStateError(f"Insufficient inventory for offer {item.offer_id}")
         inv.quantity -= item.quantity
         
     # 3. Mark paid

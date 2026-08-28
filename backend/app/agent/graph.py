@@ -82,6 +82,7 @@ def rank_node(state: AgentState, config: RunnableConfig):
     for p in products[:10]:
         ui_products.append({
             "id": p["id"],
+            "offer_id": p.get("offer_id"),
             "source": p.get("merchant", "local_db"),
             "name": p["title"],
             "price": p["price"],

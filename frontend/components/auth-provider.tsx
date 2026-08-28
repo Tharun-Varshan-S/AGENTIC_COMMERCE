@@ -37,6 +37,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
+  const logout = () => {
+    localStorage.removeItem('agentic_auth_token');
+    setToken(null);
+    setUser(null);
+    router.push('/login');
+  };
+
   const fetchUser = async (authToken: string) => {
     try {
       const res = await fetch('http://localhost:8000/api/auth/me', {
@@ -89,12 +96,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const logout = () => {
-    localStorage.removeItem('agentic_auth_token');
-    setToken(null);
-    setUser(null);
-    router.push('/login');
-  };
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>

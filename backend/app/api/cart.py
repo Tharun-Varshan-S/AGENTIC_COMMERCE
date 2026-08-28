@@ -35,7 +35,7 @@ def add_cart_item(
     item_in: CartItemCreate,
     service: CartService = Depends(get_service)
 ):
-    return service.add_item_to_cart(cart_id, item_in.product_id, item_in.quantity)
+    return service.add_item_to_cart(cart_id, item_in.product_id, item_in.quantity, item_in.offer_id)
 
 @router.patch("/carts/{cart_id}/items/{item_id}", response_model=CartResponse)
 def update_cart_item(

@@ -23,6 +23,7 @@ import {
   declineConsent,
   chatWithAgent,
   createPaymentOrder,
+  createDirectPaymentOrder,
   verifyPayment
 } from "@/lib/api";
 import { BuyerHeader } from "@/components/buyer/buyer-header";
@@ -82,7 +83,7 @@ export default function BuyerPage() {
 
   // Load cart and recommendations when customer changes
   useEffect(() => {
-    if (!selectedCustomerId) return;
+    if (!selectedCustomerId || !merchantId) return;
     
     async function loadCustomerData() {
       try {
@@ -114,7 +115,7 @@ export default function BuyerPage() {
   };
 
   const reloadCart = async () => {
-    if (!selectedCustomerId) return;
+    if (!selectedCustomerId || !merchantId) return;
     try {
       const activeCart = await fetchActiveCart(selectedCustomerId);
       setCart(activeCart);
@@ -195,10 +196,29 @@ export default function BuyerPage() {
       return;
     }
     try {
-      await addCartItem(cart.id, product.id, 1);
+      await addCartItem(cart.id, product.id, 1, product.offer_id);
       await reloadCart();
     } catch (err: any) {
       setError(err.message);
+    }
+  };
+
+  const handleBuyNow = async (product: any) => {
+    if (!selectedCustomerId || !merchantId) {
+      alert("Please select a customer first.");
+      return;
+    }
+    try {
+      const orderRes = await createDirectPaymentOrder(merchantId, selectedCustomerId, product.id, product.offer_id, 1);
+      handleRazorpayCheckout(orderRes);
+    } catch (err: any) {
+      if (err.message && err.message.includes("Consent required")) {
+         // Direct checkout hit a policy limit and was rejected since we do not have an interactive direct consent flow yet,
+         // or it needs handling. For now, inform user to use cart.
+         setError("This high-value order requires approval. Please add to cart to proceed with consent flow.");
+      } else {
+         setError(err.message);
+      }
     }
   };
 
@@ -360,6 +380,7 @@ export default function BuyerPage() {
               products={products}
               isLoading={isProductsLoading}
               onAddToCart={handleAddToCart}
+              onBuyNow={handleBuyNow}
               onViewDetails={setSelectedProduct}
             />
 
@@ -367,6 +388,7 @@ export default function BuyerPage() {
               <RecommendationCard 
                 recommendation={recommendation}
                 onAddToCart={handleAddToCart}
+                onBuyNow={handleBuyNow}
               />
             )}
           </div>
@@ -386,6 +408,7 @@ export default function BuyerPage() {
         product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
         onAddToCart={handleAddToCart}
+        onBuyNow={handleBuyNow}
       />
 
       <CartDrawer 

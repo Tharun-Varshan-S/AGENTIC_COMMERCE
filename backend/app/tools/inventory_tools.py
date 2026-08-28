@@ -19,7 +19,9 @@ class CheckInventoryTool(CommerceTool):
         if not product or product.merchant_id != merchant_id:
             raise ToolError("PRODUCT_NOT_FOUND", "The requested product does not exist.")
 
-        inv = product.inventory
+        offer = next((o for o in product.offers if o.is_active), product.offers[0] if product.offers else None)
+        inv = offer.inventory if offer else None
+        
         if not inv:
             return {
                 "product_id": str(product_id),
@@ -29,7 +31,7 @@ class CheckInventoryTool(CommerceTool):
                 "status": "OUT_OF_STOCK"
             }
 
-        available = inv.available_quantity
+        available = inv.quantity - inv.reserved_quantity
         
         status = "IN_STOCK"
         if available <= 0:

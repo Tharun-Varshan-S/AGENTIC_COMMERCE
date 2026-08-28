@@ -35,7 +35,7 @@ class InventoryResponse(BaseModel):
     available_quantity: int
 
 class ProductBase(BaseModel):
-    merchant_id: UUID
+    merchant_id: Optional[UUID] = None
     sku: str
     name: str
     description: Optional[str] = None

@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.payment.schemas import RazorpayOrderRequest, RazorpayVerifyRequest, PaymentStatusResponse
-from app.payment.service import create_payment_order, verify_payment
+from app.payment.schemas import RazorpayOrderRequest, RazorpayVerifyRequest, PaymentStatusResponse, DirectCheckoutRequest
+from app.payment.service import create_payment_order, verify_payment, create_direct_payment_order
 from app.payment.exceptions import PaymentStateError, PaymentVerificationError
 
 router = APIRouter()
@@ -21,6 +21,18 @@ def create_order(request: RazorpayOrderRequest, db: Session = Depends(get_db)):
             request.source,
             request.agent_trace
         )
+        return res
+    except PaymentStateError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+@router.post("/create-direct-order")
+def create_direct_order(request: DirectCheckoutRequest, db: Session = Depends(get_db)):
+    if not request.human_approval:
+        raise HTTPException(status_code=400, detail="Human approval is required to create a direct payment order.")
+    try:
+        res = create_direct_payment_order(db, request)
         return res
     except PaymentStateError as e:
         raise HTTPException(status_code=400, detail=str(e))

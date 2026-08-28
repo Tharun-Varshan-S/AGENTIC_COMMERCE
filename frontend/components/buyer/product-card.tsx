@@ -8,6 +8,7 @@ type Inventory = {
 
 type Product = {
   id: string;
+  offer_id?: string;
   name: string;
   description?: string;
   category: string;
@@ -26,10 +27,11 @@ type Product = {
 type ProductCardProps = {
   product: Product;
   onAddToCart: (product: Product) => void;
+  onBuyNow?: (product: Product) => void;
   onViewDetails: (product: Product) => void;
 };
 
-export function ProductCard({ product, onAddToCart, onViewDetails }: ProductCardProps) {
+export function ProductCard({ product, onAddToCart, onBuyNow, onViewDetails }: ProductCardProps) {
   const formatPrice = (price: string | number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -148,7 +150,7 @@ export function ProductCard({ product, onAddToCart, onViewDetails }: ProductCard
           Add to Cart
         </button>
         <button
-          onClick={() => onAddToCart(product)}
+          onClick={() => onBuyNow ? onBuyNow(product) : onAddToCart(product)}
           disabled={!isAvailable}
           className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-sm transition-colors disabled:opacity-50"
         >

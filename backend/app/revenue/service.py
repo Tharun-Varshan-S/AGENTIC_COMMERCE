@@ -47,15 +47,22 @@ class RevenueEngine:
 
         reason, factors = self.explainability_engine.generate_explanation(details, intervention)
 
-        expected_order_value = primary_product.price
-        additional_revenue = 0
+        # Get active offer price for primary product
+        primary_offer = next((o for o in primary_product.offers if o.is_active), primary_product.offers[0] if primary_product.offers else None)
+        primary_price = primary_offer.price if primary_offer else Decimal("0.0")
+
+        expected_order_value = primary_price
+        additional_revenue = Decimal("0.0")
         if recommended:
+            rec_offer = next((o for o in recommended.offers if o.is_active), recommended.offers[0] if recommended.offers else None)
+            rec_price = rec_offer.price if rec_offer else Decimal("0.0")
+            
             if intervention in ["UPSELL", "ALTERNATIVE"]:
-                expected_order_value = recommended.price
-                additional_revenue = max(0, recommended.price - primary_product.price)
+                expected_order_value = rec_price
+                additional_revenue = max(Decimal("0.0"), rec_price - primary_price)
             else:
-                expected_order_value += recommended.price
-                additional_revenue = recommended.price
+                expected_order_value += rec_price
+                additional_revenue = rec_price
 
         decision = AgentDecision(
             merchant_id=request.merchant_id,
@@ -76,13 +83,13 @@ class RevenueEngine:
             primary_product=ProductSummary(
                 id=primary_product.id,
                 name=primary_product.name,
-                price=primary_product.price
+                price=primary_price
             ),
             intervention=intervention,
             recommended_product=ProductSummary(
                 id=recommended.id,
                 name=recommended.name,
-                price=recommended.price
+                price=rec_price
             ) if recommended else None,
             reason=reason,
             score=score,

@@ -29,11 +29,11 @@ class InventoryRule(PolicyRule):
         
         reasons = []
         for item in cart_items:
-            inv = inventories.get(item.product_id)
+            inv = inventories.get(item.offer_id)
             if not inv:
                 reasons.append(PolicyReason(
                     code="INSUFFICIENT_INVENTORY",
-                    message=f"Inventory data not found for product {item.product_id}."
+                    message=f"Inventory data not found for offer {item.offer_id}."
                 ))
                 continue
             
@@ -41,7 +41,7 @@ class InventoryRule(PolicyRule):
             if available < item.quantity:
                 reasons.append(PolicyReason(
                     code="INSUFFICIENT_INVENTORY",
-                    message=f"Only {available} units are available for product {item.product_id}."
+                    message=f"Only {available} units are available for offer {item.offer_id}."
                 ))
         return reasons
 
@@ -49,29 +49,32 @@ class ProductStatusRule(PolicyRule):
     def evaluate(self, context: Dict[str, Any]) -> List[PolicyReason]:
         cart_items: List[CartItem] = context["cart_items"]
         products: Dict[str, Product] = context["products"]
+        offers = context["offers"]
         
         reasons = []
         for item in cart_items:
-            prod = products.get(item.product_id)
-            if not prod or not prod.is_active:
-                reasons.append(PolicyReason(
-                    code="PRODUCT_INACTIVE",
-                    message=f"Product {item.product_id} is inactive or not found."
-                ))
+            offer = offers.get(item.offer_id)
+            if offer:
+                prod = products.get(offer.product_id)
+                if not prod or not offer.is_active:
+                    reasons.append(PolicyReason(
+                        code="PRODUCT_INACTIVE",
+                        message=f"Product/Offer {offer.product_id} is inactive or not found."
+                    ))
         return reasons
 
 class PriceIntegrityRule(PolicyRule):
     def evaluate(self, context: Dict[str, Any]) -> List[PolicyReason]:
         cart_items: List[CartItem] = context["cart_items"]
-        products: Dict[str, Product] = context["products"]
+        offers = context["offers"]
         
         reasons = []
         for item in cart_items:
-            prod = products.get(item.product_id)
-            if prod and item.unit_price != prod.price:
+            offer = offers.get(item.offer_id)
+            if offer and item.unit_price != offer.price:
                 reasons.append(PolicyReason(
                     code="PRICE_CHANGED",
-                    message=f"Price for product {item.product_id} has changed from {item.unit_price} to {prod.price}."
+                    message=f"Price for offer {item.offer_id} has changed from {item.unit_price} to {offer.price}."
                 ))
         return reasons
 
@@ -97,20 +100,32 @@ class MinimumMarginRule(PolicyRule):
         cart_items: List[CartItem] = context["cart_items"]
         products: Dict[str, Product] = context["products"]
         merchant_rules: MerchantRule = context["merchant_rules"]
+        offers = context["offers"]
         
         if not merchant_rules or merchant_rules.min_margin_percent is None:
             return []
             
         reasons = []
         for item in cart_items:
-            prod = products.get(item.product_id)
-            if prod and prod.cost_price:
-                margin = ((item.unit_price - prod.cost_price) / item.unit_price) * Decimal('100')
-                if margin < merchant_rules.min_margin_percent:
-                    reasons.append(PolicyReason(
-                        code="MIN_MARGIN_VIOLATION",
-                        message="Transaction violates minimum margin requirements."
-                    ))
+            offer = offers.get(item.offer_id)
+            if offer:
+                prod = products.get(offer.product_id)
+                if prod:
+                    # Fetch cost_price from metadata_json if available, or fallback to an attribute if it ever gets added
+                    cost_price = None
+                    if hasattr(prod, 'cost_price') and prod.cost_price:
+                        cost_price = prod.cost_price
+                    elif prod.metadata_json and isinstance(prod.metadata_json, dict):
+                        cost_price = prod.metadata_json.get('cost_price')
+                    
+                    if cost_price:
+                        cost_price = Decimal(str(cost_price))
+                        margin = ((item.unit_price - cost_price) / item.unit_price) * Decimal('100')
+                        if margin < merchant_rules.min_margin_percent:
+                            reasons.append(PolicyReason(
+                                code="MIN_MARGIN_VIOLATION",
+                                message="Transaction violates minimum margin requirements."
+                            ))
         return reasons
 
 class ConsentRequirementRule(PolicyRule):

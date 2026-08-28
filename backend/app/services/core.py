@@ -38,6 +38,11 @@ class CoreService:
         
         results = []
         for p in products:
+            offer = None
+            if p.offers:
+                active_offers = [o for o in p.offers if o.is_active]
+                offer = active_offers[0] if active_offers else p.offers[0]
+                
             prod_dict = {
                 "id": p.id,
                 "created_at": p.created_at,
@@ -48,19 +53,19 @@ class CoreService:
                 "description": p.description,
                 "category": p.category,
                 "brand": p.brand,
-                "price": p.price,
-                "cost_price": p.cost_price,
-                "currency": p.currency,
-                "is_active": p.is_active,
+                "price": offer.price if offer else Decimal("0.0"),
+                "cost_price": None,
+                "currency": offer.currency if offer else "INR",
+                "is_active": offer.is_active if offer else True,
                 "metadata_json": p.metadata_json,
                 "inventory": None
             }
-            if p.inventory:
+            if offer and offer.inventory:
                 prod_dict["inventory"] = {
-                    "product_id": p.inventory.product_id,
-                    "quantity": p.inventory.quantity,
-                    "reserved_quantity": p.inventory.reserved_quantity,
-                    "available_quantity": p.inventory.quantity - p.inventory.reserved_quantity
+                    "product_id": p.id,
+                    "quantity": offer.inventory.quantity,
+                    "reserved_quantity": offer.inventory.reserved_quantity,
+                    "available_quantity": offer.inventory.quantity - offer.inventory.reserved_quantity
                 }
             results.append(ProductResponse(**prod_dict))
         return results
@@ -70,6 +75,11 @@ class CoreService:
         if not p:
             return None
         
+        offer = None
+        if p.offers:
+            active_offers = [o for o in p.offers if o.is_active]
+            offer = active_offers[0] if active_offers else p.offers[0]
+            
         prod_dict = {
             "id": p.id,
             "created_at": p.created_at,
@@ -80,19 +90,19 @@ class CoreService:
             "description": p.description,
             "category": p.category,
             "brand": p.brand,
-            "price": p.price,
-            "cost_price": p.cost_price,
-            "currency": p.currency,
-            "is_active": p.is_active,
+            "price": offer.price if offer else Decimal("0.0"),
+            "cost_price": None,
+            "currency": offer.currency if offer else "INR",
+            "is_active": offer.is_active if offer else True,
             "metadata_json": p.metadata_json,
             "inventory": None
         }
-        if p.inventory:
+        if offer and offer.inventory:
             prod_dict["inventory"] = {
-                "product_id": p.inventory.product_id,
-                "quantity": p.inventory.quantity,
-                "reserved_quantity": p.inventory.reserved_quantity,
-                "available_quantity": p.inventory.quantity - p.inventory.reserved_quantity
+                "product_id": p.id,
+                "quantity": offer.inventory.quantity,
+                "reserved_quantity": offer.inventory.reserved_quantity,
+                "available_quantity": offer.inventory.quantity - offer.inventory.reserved_quantity
             }
         return ProductResponse(**prod_dict)
 
@@ -100,7 +110,7 @@ class CoreService:
         inventories = self.repo.get_all_inventory()
         return [
             InventoryResponse(
-                product_id=inv.product_id,
+                product_id=inv.offer.product_id if inv.offer else inv.id,
                 quantity=inv.quantity,
                 reserved_quantity=inv.reserved_quantity,
                 available_quantity=inv.quantity - inv.reserved_quantity

@@ -6,9 +6,10 @@ type ProductDetailsProps = {
   product: any;
   onClose: () => void;
   onAddToCart: (product: any) => void;
+  onBuyNow?: (product: any) => void;
 };
 
-export function ProductDetails({ product, onClose, onAddToCart }: ProductDetailsProps) {
+export function ProductDetails({ product, onClose, onAddToCart, onBuyNow }: ProductDetailsProps) {
   if (!product) return null;
 
   const formatPrice = (price: string | number) => {
@@ -124,6 +125,20 @@ export function ProductDetails({ product, onClose, onAddToCart }: ProductDetails
           <button
             onClick={() => {
               onAddToCart(product);
+              onClose();
+            }}
+            disabled={!isAvailable}
+            className="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
+          >
+            Add to Cart
+          </button>
+          <button
+            onClick={() => {
+              if (onBuyNow) {
+                onBuyNow(product);
+              } else {
+                onAddToCart(product);
+              }
               onClose();
             }}
             disabled={!isAvailable}

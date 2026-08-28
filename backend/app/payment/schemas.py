@@ -9,6 +9,16 @@ class RazorpayOrderRequest(BaseModel):
     source: str = "DIRECT"
     agent_trace: Optional[dict] = None
 
+class DirectCheckoutRequest(BaseModel):
+    merchant_id: str
+    customer_id: str
+    product_id: str
+    offer_id: str
+    quantity: int = 1
+    source: str = "DIRECT"
+    human_approval: bool = False
+    agent_trace: Optional[dict] = None
+
 class RazorpayOrderResponse(BaseModel):
     payment_id: str
     razorpay_order_id: str

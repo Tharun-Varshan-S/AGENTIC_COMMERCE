@@ -8,6 +8,7 @@ from app.schemas.core import ORMBase, ProductResponse
 class CartItemBase(BaseModel):
     product_id: UUID
     quantity: int
+    offer_id: Optional[UUID] = None
 
 class CartItemCreate(CartItemBase):
     pass

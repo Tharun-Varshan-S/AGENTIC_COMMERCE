@@ -24,9 +24,11 @@ class CalculateCartTool(CommerceTool):
 
         items = []
         for item in cart.items:
+            offer = item.offer
+            product = offer.product if offer else None
             items.append({
-                "product_id": str(item.product_id),
-                "name": item.product.name if item.product else "Unknown Product",
+                "product_id": str(product.id) if product else "Unknown",
+                "name": product.name if product else "Unknown Product",
                 "quantity": item.quantity,
                 "unit_price": float(item.unit_price),
                 "subtotal": float(item.unit_price * item.quantity)
@@ -73,24 +75,27 @@ class ValidateCartTool(CommerceTool):
             })
             
         for item in cart.items:
-            product = item.product
+            offer = item.offer
+            if not offer:
+                continue
+            product = offer.product
             if not product:
                 issues.append({
                     "code": "PRODUCT_NOT_FOUND",
-                    "product_id": str(item.product_id),
+                    "product_id": str(offer.product_id),
                     "message": "Product no longer exists."
                 })
                 continue
                 
-            if not product.is_active:
+            if not offer.is_active:
                 issues.append({
                     "code": "PRODUCT_INACTIVE",
                     "product_id": str(product.id),
                     "message": f"Product '{product.name}' is no longer active."
                 })
                 
-            if product.inventory:
-                available = product.inventory["available_quantity"]
+            if offer.inventory:
+                available = offer.inventory.quantity - offer.inventory.reserved_quantity
                 if item.quantity > available:
                     issues.append({
                         "code": "INSUFFICIENT_INVENTORY",

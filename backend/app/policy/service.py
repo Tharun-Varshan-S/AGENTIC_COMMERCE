@@ -4,6 +4,7 @@ from app.models.order import Cart, CartItem
 from app.models.merchant import Merchant, MerchantRule
 from app.models.customer import Customer
 from app.models.product import Product, Inventory
+from app.models.offer import Offer
 from app.models.consent import ConsentRequest
 from app.policy.schemas import PolicyEvaluationRequest, PolicyDecision
 from app.policy.evaluator import PolicyEvaluator
@@ -33,17 +34,21 @@ class PolicyService:
         
         cart_items = self.db.query(CartItem).filter(CartItem.cart_id == cart.id).all()
         
+        offers = {}
         products = {}
         inventories = {}
         cart_total = Decimal('0')
         
         for item in cart_items:
-            prod = self.db.query(Product).filter(Product.id == item.product_id).first()
-            inv = self.db.query(Inventory).filter(Inventory.product_id == item.product_id).first()
-            if prod:
-                products[prod.id] = prod
-            if inv:
-                inventories[inv.product_id] = inv
+            offer = self.db.query(Offer).filter(Offer.id == item.offer_id).first()
+            if offer:
+                offers[offer.id] = offer
+                prod = self.db.query(Product).filter(Product.id == offer.product_id).first()
+                inv = self.db.query(Inventory).filter(Inventory.offer_id == offer.id).first()
+                if prod:
+                    products[prod.id] = prod
+                if inv:
+                    inventories[inv.offer_id] = inv
             cart_total += item.unit_price * item.quantity
             
         approved_consent = self.db.query(ConsentRequest).filter(
@@ -61,6 +66,7 @@ class PolicyService:
             "cart": cart,
             "cart_items": cart_items,
             "merchant_rules": merchant_rules,
+            "offers": offers,
             "products": products,
             "inventories": inventories,
             "cart_total": cart_total,
