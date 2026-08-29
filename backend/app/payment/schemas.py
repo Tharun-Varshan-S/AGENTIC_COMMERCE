@@ -37,6 +37,7 @@ class PaymentStatusResponse(BaseModel):
     status: str
 
 class AgenticSetupRequest(BaseModel):
+    merchant_id: str
     customer_id: str
     per_transaction_limit: float
     daily_limit: float

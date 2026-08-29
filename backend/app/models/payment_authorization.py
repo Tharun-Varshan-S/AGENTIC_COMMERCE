@@ -6,6 +6,7 @@ class AgenticPaymentAuthorization(BaseModel):
     __tablename__ = "agentic_payment_authorizations"
 
     customer_id = Column(ForeignKey("customers.id"), nullable=False, index=True)
+    merchant_id = Column(ForeignKey("merchants.id"), nullable=False, index=True)
     provider = Column(String, nullable=False) # e.g. razorpay
     rail = Column(String, nullable=False) # e.g. upi_reserve_pay
     authorization_reference = Column(String, nullable=True) # Reference id from payment provider
@@ -18,3 +19,4 @@ class AgenticPaymentAuthorization(BaseModel):
     expires_at = Column(DateTime(timezone=True), nullable=True)
 
     customer = relationship("Customer")
+    merchant = relationship("Merchant")

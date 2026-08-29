@@ -37,13 +37,19 @@ def setup_data():
     
     prod1_id = str(uuid.uuid4())
     sku_val = f"P1-{str(uuid.uuid4())[:8]}"
-    prod1 = Product(id=prod1_id, merchant_id=merchant_id, sku=sku_val, name="P1", category="C", price=Decimal('1000'), cost_price=Decimal('500'))
-    inv1 = Inventory(product_id=prod1_id, quantity=10, reserved_quantity=0)
+    prod1 = Product(id=prod1_id, merchant_id=merchant_id, sku=sku_val, name="P1", category="C")
+    
+    from app.models.offer import Offer
+    offer1_id = str(uuid.uuid4())
+    offer1 = Offer(id=offer1_id, merchant_id=merchant_id, product_id=prod1_id, price=Decimal('1000'), is_active=True, currency="INR")
+    
+    inv1 = Inventory(offer_id=offer1_id, quantity=10, reserved_quantity=0)
     db.add(prod1)
+    db.add(offer1)
     db.add(inv1)
     
     db.commit()
-    yield {"db": db, "merchant_id": merchant_id, "customer_id": customer_id, "prod1_id": prod1_id}
+    yield {"db": db, "merchant_id": merchant_id, "customer_id": customer_id, "prod1_id": prod1_id, "offer1_id": offer1_id}
     db.close()
 
 def test_evaluate_policy_allowed(client, setup_data):
@@ -51,11 +57,12 @@ def test_evaluate_policy_allowed(client, setup_data):
     m_id = setup_data["merchant_id"]
     c_id = setup_data["customer_id"]
     p_id = setup_data["prod1_id"]
+    o_id = setup_data["offer1_id"]
     
     # Cart total = 2000 (under 3000 auto limit)
     cart_id = str(uuid.uuid4())
     cart = Cart(id=cart_id, merchant_id=m_id, customer_id=c_id)
-    ci1 = CartItem(cart_id=cart_id, product_id=p_id, quantity=2, unit_price=Decimal('1000'))
+    ci1 = CartItem(cart_id=cart_id, offer_id=o_id, quantity=2, unit_price=Decimal('1000'))
     db.add(cart)
     db.add(ci1)
     db.commit()
@@ -70,11 +77,12 @@ def test_evaluate_policy_requires_consent(client, setup_data):
     m_id = setup_data["merchant_id"]
     c_id = setup_data["customer_id"]
     p_id = setup_data["prod1_id"]
+    o_id = setup_data["offer1_id"]
     
     # Cart total = 4000 (above 3000 auto limit, below 5000 max limit)
     cart_id = str(uuid.uuid4())
     cart = Cart(id=cart_id, merchant_id=m_id, customer_id=c_id)
-    ci1 = CartItem(cart_id=cart_id, product_id=p_id, quantity=4, unit_price=Decimal('1000'))
+    ci1 = CartItem(cart_id=cart_id, offer_id=o_id, quantity=4, unit_price=Decimal('1000'))
     db.add(cart)
     db.add(ci1)
     db.commit()
@@ -90,11 +98,12 @@ def test_evaluate_policy_rejected(client, setup_data):
     m_id = setup_data["merchant_id"]
     c_id = setup_data["customer_id"]
     p_id = setup_data["prod1_id"]
+    o_id = setup_data["offer1_id"]
     
     # Cart total = 6000 (above 5000 max limit)
     cart_id = str(uuid.uuid4())
     cart = Cart(id=cart_id, merchant_id=m_id, customer_id=c_id)
-    ci1 = CartItem(cart_id=cart_id, product_id=p_id, quantity=6, unit_price=Decimal('1000'))
+    ci1 = CartItem(cart_id=cart_id, offer_id=o_id, quantity=6, unit_price=Decimal('1000'))
     db.add(cart)
     db.add(ci1)
     db.commit()
@@ -110,11 +119,12 @@ def test_consent_flow(client, setup_data):
     m_id = setup_data["merchant_id"]
     c_id = setup_data["customer_id"]
     p_id = setup_data["prod1_id"]
+    o_id = setup_data["offer1_id"]
     
     # Create cart requiring consent
     cart_id = str(uuid.uuid4())
     cart = Cart(id=cart_id, merchant_id=m_id, customer_id=c_id)
-    ci1 = CartItem(cart_id=cart_id, product_id=p_id, quantity=4, unit_price=Decimal('1000'))
+    ci1 = CartItem(cart_id=cart_id, offer_id=o_id, quantity=4, unit_price=Decimal('1000'))
     db.add(cart)
     db.add(ci1)
     db.commit()
@@ -148,11 +158,12 @@ def test_consent_decline(client, setup_data):
     m_id = setup_data["merchant_id"]
     c_id = setup_data["customer_id"]
     p_id = setup_data["prod1_id"]
+    o_id = setup_data["offer1_id"]
     
     # Create cart requiring consent
     cart_id = str(uuid.uuid4())
     cart = Cart(id=cart_id, merchant_id=m_id, customer_id=c_id)
-    ci1 = CartItem(cart_id=cart_id, product_id=p_id, quantity=4, unit_price=Decimal('1000'))
+    ci1 = CartItem(cart_id=cart_id, offer_id=o_id, quantity=4, unit_price=Decimal('1000'))
     db.add(cart)
     db.add(ci1)
     db.commit()

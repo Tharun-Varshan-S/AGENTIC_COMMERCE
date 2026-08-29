@@ -73,6 +73,7 @@ def setup_agentic(request: AgenticSetupRequest, db: Session = Depends(get_db)):
     try:
         auth = setup_agentic_authorization(
             db, 
+            request.merchant_id,
             request.customer_id, 
             Decimal(str(request.per_transaction_limit)), 
             Decimal(str(request.daily_limit))

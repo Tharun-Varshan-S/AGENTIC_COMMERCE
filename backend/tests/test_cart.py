@@ -4,7 +4,10 @@ from app.main import app
 from app.db.session import SessionLocal
 from app.models.customer import Customer
 from app.models.merchant import Merchant
-from app.models.product import Product
+from app.models.product import Product, Inventory
+from app.models.offer import Offer
+from decimal import Decimal
+import uuid
 
 client = TestClient(app)
 
@@ -22,8 +25,10 @@ def test_product_max_price_filtering():
         assert float(product["price"]) <= 2000
 
 def test_cart_creation(db):
-    customer = db.query(Customer).first()
     merchant = db.query(Merchant).first()
+    customer = Customer(merchant_id=merchant.id, name="Test Cust", email=f"test{uuid.uuid4().hex}@test.com")
+    db.add(customer)
+    db.commit()
     
     response = client.post(
         "/api/carts",
@@ -33,13 +38,25 @@ def test_cart_creation(db):
     data = response.json()
     assert data["customer_id"] == str(customer.id)
     assert data["merchant_id"] == str(merchant.id)
-    assert data["status"] == "CHECKOUT"
+    assert data["status"] == "ACTIVE"
     assert data["items"] == []
     assert float(data["subtotal"]) == 0.0
 
 def test_cart_add_item_and_subtotal(db):
-    customer = db.query(Customer).first()
-    product = db.query(Product).first()
+    merchant = db.query(Merchant).first()
+    customer = Customer(merchant_id=merchant.id, name="Test Cust", email=f"test{uuid.uuid4().hex}@test.com")
+    db.add(customer)
+    db.commit()
+    
+    # Create product with offer and inventory
+    product = Product(merchant_id=merchant.id, sku=f"TEST-{uuid.uuid4().hex[:8]}", name="Test Item", category="Test")
+    db.add(product)
+    db.flush()
+    offer = Offer(product_id=product.id, merchant_id=merchant.id, price=Decimal("150.00"))
+    db.add(offer)
+    db.flush()
+    db.add(Inventory(offer_id=offer.id, quantity=100))
+    db.commit()
     
     # Get active cart
     response = client.get(f"/api/carts/active?customer_id={str(customer.id)}")
@@ -68,10 +85,26 @@ def test_cart_add_item_and_subtotal(db):
     assert float(data["subtotal"]) == expected_subtotal
     
 def test_cart_exceed_inventory(db):
-    customer = db.query(Customer).first()
-    product = db.query(Product).first()
+    merchant = db.query(Merchant).first()
+    customer = Customer(merchant_id=merchant.id, name="Test Cust", email=f"test{uuid.uuid4().hex}@test.com")
+    db.add(customer)
+    db.commit()
+    
+    product = Product(merchant_id=merchant.id, sku=f"TEST-{uuid.uuid4().hex[:8]}", name="Test Item", category="Test")
+    db.add(product)
+    db.flush()
+    offer = Offer(product_id=product.id, merchant_id=merchant.id, price=Decimal("150.00"))
+    db.add(offer)
+    db.flush()
+    db.add(Inventory(offer_id=offer.id, quantity=5))
+    db.commit()
     
     response = client.get(f"/api/carts/active?customer_id={str(customer.id)}")
+    if response.status_code == 404:
+        response = client.post(
+            "/api/carts",
+            json={"customer_id": str(customer.id), "merchant_id": str(merchant.id)}
+        )
     cart_id = response.json()["id"]
     
     # Try adding a huge quantity

@@ -78,4 +78,20 @@ class PolicyService:
             "agentic_auth": agentic_auth
         }
         
-        return self.evaluator.evaluate(context)
+        decision = self.evaluator.evaluate(context)
+        
+        # Log decision
+        from app.models.agent import AgentDecision
+        agent_decision = AgentDecision(
+            customer_id=request.customer_id,
+            merchant_id=request.merchant_id,
+            action="POLICY_EVALUATION",
+            actor_type="SYSTEM",
+            decision_status=decision.decision,
+            policy_rules=[r.code for r in decision.reasons],
+            reason=decision.reasons[0].message if decision.reasons else None
+        )
+        self.db.add(agent_decision)
+        self.db.commit()
+        
+        return decision

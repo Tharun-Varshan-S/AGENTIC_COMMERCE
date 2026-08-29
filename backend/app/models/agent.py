@@ -18,6 +18,12 @@ class AgentDecision(BaseModel):
     score = Column(Numeric(5, 4))
     scoring_details = Column(JSONB)
 
+    # Policy and General Logging Fields
+    action = Column(String)
+    actor_type = Column(String)
+    decision_status = Column(String)
+    policy_rules = Column(JSONB)
+
     customer = relationship("Customer", back_populates="agent_decisions")
     merchant = relationship("Merchant", back_populates="agent_decisions")
     primary_product = relationship("Product", foreign_keys=[primary_product_id], back_populates="agent_decisions_primary")

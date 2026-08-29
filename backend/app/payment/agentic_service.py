@@ -9,7 +9,7 @@ from app.models.audit import AuditLog
 from app.payment.exceptions import PaymentStateError
 from app.payment.razorpay_client import create_order as create_rp_order
 
-def setup_agentic_authorization(db: Session, customer_id: str, per_transaction_limit: Decimal, daily_limit: Decimal) -> AgenticPaymentAuthorization:
+def setup_agentic_authorization(db: Session, merchant_id: str, customer_id: str, per_transaction_limit: Decimal, daily_limit: Decimal) -> AgenticPaymentAuthorization:
     # Check if active one exists and revoke it
     existing = db.query(AgenticPaymentAuthorization).filter(
         AgenticPaymentAuthorization.customer_id == customer_id,
@@ -20,6 +20,7 @@ def setup_agentic_authorization(db: Session, customer_id: str, per_transaction_l
 
     auth = AgenticPaymentAuthorization(
         customer_id=customer_id,
+        merchant_id=merchant_id,
         provider="razorpay",
         rail="upi_reserve_pay",
         authorization_reference=f"auth_{uuid.uuid4().hex[:10]}", # Mocking Razorpay authorization ID
@@ -58,6 +59,20 @@ def execute_agentic_payment(db: Session, merchant_id: str, customer_id: str, car
     if not auth:
         raise PaymentStateError("No active agentic payment authorization found.")
 
+    if str(auth.merchant_id) != str(merchant_id):
+        from app.models.agent import AgentDecision
+        decision = AgentDecision(
+            customer_id=customer_id,
+            merchant_id=merchant_id,
+            action="AGENTIC_PAYMENT_EXECUTION",
+            actor_type="SYSTEM",
+            decision_status="REJECTED",
+            policy_rules=["authorization_merchant_mismatch"]
+        )
+        db.add(decision)
+        db.commit()
+        raise PaymentStateError("authorization_merchant_mismatch")
+
     if auth.expires_at and auth.expires_at < datetime.utcnow():
         auth.status = "EXPIRED"
         db.commit()
@@ -72,7 +87,7 @@ def execute_agentic_payment(db: Session, merchant_id: str, customer_id: str, car
     if not cart:
         raise PaymentStateError("Cart not found or not active")
 
-    total = sum((item.unit_price * item.quantity) for item in cart.items)
+    total = sum((item.offer.price * item.quantity) for item in cart.items if item.offer)
     discount = cart.discount or Decimal('0')
     total -= discount
     if total <= 0:
@@ -106,6 +121,8 @@ def execute_agentic_payment(db: Session, merchant_id: str, customer_id: str, car
     from app.models.order import OrderItem
     for item in cart.items:
         offer = item.offer
+        if not offer:
+            continue
         product = offer.product if offer else None
         order_item = OrderItem(
             order_id=order.id,
@@ -113,8 +130,8 @@ def execute_agentic_payment(db: Session, merchant_id: str, customer_id: str, car
             product_name=product.name if product else "Unknown",
             sku=product.sku if product else "N/A",
             quantity=item.quantity,
-            unit_price=item.unit_price,
-            subtotal=item.unit_price * item.quantity
+            unit_price=offer.price,
+            subtotal=offer.price * item.quantity
         )
         db.add(order_item)
 

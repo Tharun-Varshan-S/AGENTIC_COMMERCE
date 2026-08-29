@@ -13,28 +13,39 @@ class RecommendationEngine:
         self.db = db
         self.scoring_engine = ScoringEngine(db)
 
+    def _get_price(self, product: Product) -> Decimal:
+        offer = next((o for o in product.offers if o.is_active), product.offers[0] if product.offers else None)
+        return offer.price if offer else Decimal("0.0")
+
+    def _get_inventory(self, product: Product) -> int:
+        offer = next((o for o in product.offers if o.is_active), product.offers[0] if product.offers else None)
+        return (offer.inventory.quantity - offer.inventory.reserved_quantity) if offer and offer.inventory else 0
+
     def determine_intervention(self, primary: Product, candidate: Product, customer_budget: Optional[Decimal]) -> str:
+        primary_price = self._get_price(primary)
+        candidate_price = self._get_price(candidate)
+        
         # Check alternative first
-        primary_qty = (primary.inventory.quantity - primary.inventory.reserved_quantity) if primary.inventory else 0
+        primary_qty = self._get_inventory(primary)
         if primary_qty <= 0:
-            candidate_qty = (candidate.inventory.quantity - candidate.inventory.reserved_quantity) if candidate.inventory else 0
+            candidate_qty = self._get_inventory(candidate)
             if candidate.category == primary.category and candidate_qty > 0:
-                if customer_budget and candidate.price > customer_budget:
+                if customer_budget and candidate_price > customer_budget:
                     return "NONE"
                 return "ALTERNATIVE"
             return "NONE"
 
         # UPSELL
         if candidate.category == primary.category:
-            if candidate.price > primary.price:
-                if customer_budget and candidate.price > customer_budget:
+            if candidate_price > primary_price:
+                if customer_budget and candidate_price > customer_budget:
                     return "NONE"
                 return "UPSELL"
             return "NONE"
 
         # CROSS_SELL
         if candidate.category != primary.category:
-            if customer_budget and (primary.price + candidate.price) > customer_budget:
+            if customer_budget and (primary_price + candidate_price) > customer_budget:
                 return "NONE"
             
             # Check affinity threshold
@@ -65,10 +76,12 @@ class RecommendationEngine:
             details = self.scoring_engine.score_candidate(primary, candidate, customer_budget, customer_history)
             
             # Budget explicitly checked in determine_intervention, but pass a flag for explainability
+            primary_price = self._get_price(primary)
+            candidate_price = self._get_price(candidate)
             if intervention in ["UPSELL", "ALTERNATIVE"]:
-                details["budget_compatibility"] = customer_budget is not None and (candidate.price <= customer_budget)
+                details["budget_compatibility"] = customer_budget is not None and (candidate_price <= customer_budget)
             else:
-                details["budget_compatibility"] = customer_budget is not None and (primary.price + candidate.price <= customer_budget)
+                details["budget_compatibility"] = customer_budget is not None and (primary_price + candidate_price <= customer_budget)
             
             score = details["score"]
             if score >= self.MIN_RECOMMENDATION_SCORE and score > best_score:

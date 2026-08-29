@@ -16,5 +16,10 @@ class AgentDecisionResponse(ORMBase):
     reason: Optional[str] = None
     expected_order_value: Optional[Decimal] = None
     
+    action: Optional[str] = None
+    actor_type: Optional[str] = None
+    decision_status: Optional[str] = None
+    policy_rules: Optional[list] = None
+    
     primary_product: Optional[ProductResponse] = None
     recommended_product: Optional[ProductResponse] = None

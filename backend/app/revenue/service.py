@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from decimal import Decimal
 
 from app.models.product import Product
 from app.models.customer import CustomerEvent

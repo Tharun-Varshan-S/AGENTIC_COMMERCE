@@ -18,14 +18,14 @@ class CartRepository:
     def get_active_cart(self, customer_id: UUID) -> Optional[Cart]:
         return self.db.scalars(
             select(Cart)
-            .filter(Cart.customer_id == customer_id, Cart.status == "CHECKOUT")
+            .filter(Cart.customer_id == customer_id, Cart.status == "ACTIVE")
         ).first()
 
     def create_cart(self, customer_id: UUID, merchant_id: UUID, currency: str = "INR") -> Cart:
         cart = Cart(
             customer_id=customer_id,
             merchant_id=merchant_id,
-            status="CHECKOUT",
+            status="ACTIVE",
             currency=currency
         )
         self.db.add(cart)

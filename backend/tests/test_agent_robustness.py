@@ -3,9 +3,24 @@ import os
 from uuid import uuid4
 from unittest.mock import patch, MagicMock
 
-from app.agent.schemas import ChatRequest
-from app.agent.service import get_agent_response
+from app.agent.schemas import ChatRequest, ChatResponse, ToolCallLog
+from app.agent.service import get_agent_response_stream
 from app.db.session import SessionLocal
+import json
+
+def get_agent_response(request: ChatRequest, db_session) -> ChatResponse:
+    for chunk in get_agent_response_stream(request, db_session):
+        data = json.loads(chunk)
+        if data["type"] == "final_result":
+            res = data["data"]
+            tool_calls = [ToolCallLog(**tc) for tc in res.get("tool_calls", [])]
+            return ChatResponse(
+                session_id=res["session_id"],
+                message=res["message"],
+                tool_calls=tool_calls,
+                products=res.get("products", [])
+            )
+    return ChatResponse(session_id=request.session_id, message="", tool_calls=[], products=[])
 
 # These tests will connect to the real Gemini API if GEMINI_API_KEY is set.
 # If not, they will be skipped.

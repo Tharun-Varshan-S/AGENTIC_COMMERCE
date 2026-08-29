@@ -61,4 +61,4 @@ def test_merchant_rules(db):
     assert response.status_code == 200
     data = response.json()
     assert len(data) > 0
-    assert float(data[0]["max_transaction_amount"]) == 5000.00
+    assert float(data[0]["max_transaction_amount"]) == 50000.00

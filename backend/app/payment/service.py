@@ -131,8 +131,8 @@ def create_payment_order(db: Session, merchant_id: str, customer_id: str, cart_i
             product_name=product.name if product else "Unknown",
             sku=product.sku if product else "N/A",
             quantity=item.quantity,
-            unit_price=item.unit_price,
-            subtotal=item.unit_price * item.quantity
+            unit_price=offer.price if offer else item.unit_price,
+            subtotal=(offer.price if offer else item.unit_price) * item.quantity
         )
         db.add(order_item)
 

@@ -28,6 +28,10 @@ class ScoringEngine:
             return 1.0
         return self.affinity_map.get((cat1, cat2), self.affinity_map.get((cat2, cat1), 0.31))
 
+    def _get_price(self, product: Product) -> Decimal:
+        offer = next((o for o in product.offers if o.is_active), product.offers[0] if product.offers else None)
+        return offer.price if offer else Decimal("0.0")
+
     def _get_purchase_probability(self, primary: Product, candidate: Product, customer_budget: Decimal, customer_history: List[CustomerEvent]) -> float:
         prob = 0.40 # base
         
@@ -41,23 +45,30 @@ class ScoringEngine:
         if primary.brand and candidate.brand and primary.brand == candidate.brand:
             prob += 0.05
             
-        total_cost = primary.price + candidate.price
+        total_cost = self._get_price(primary) + self._get_price(candidate)
         if customer_budget and total_cost <= customer_budget:
             prob += 0.10
             
         return min(max(prob, 0.0), 1.0)
 
     def _get_margin_score(self, candidate: Product) -> float:
-        if not candidate.cost_price or candidate.price <= 0:
+        price = self._get_price(candidate)
+        offer = next((o for o in candidate.offers if o.is_active), candidate.offers[0] if candidate.offers else None)
+        
+        # We don't have cost_price on Offer anymore. Use mrp if available, else assume 50% margin
+        cost_price = offer.mrp * Decimal("0.5") if offer and offer.mrp else price * Decimal("0.5")
+        
+        if cost_price <= 0 or price <= 0:
             return 0.5 # fallback
 
-        margin = float((candidate.price - candidate.cost_price) / candidate.price)
+        margin = float((price - cost_price) / price)
         # Normalize: 0% -> 0, 50% -> 1.0
         normalized = margin / 0.50
         return min(max(normalized, 0.0), 1.0)
 
     def _get_inventory_health_score(self, candidate: Product) -> float:
-        qty = (candidate.inventory.quantity - candidate.inventory.reserved_quantity) if candidate.inventory else 0
+        offer = next((o for o in candidate.offers if o.is_active), candidate.offers[0] if candidate.offers else None)
+        qty = (offer.inventory.quantity - offer.inventory.reserved_quantity) if offer and offer.inventory else 0
         if qty <= 0:
             return 0.0
         elif 1 <= qty <= 5:

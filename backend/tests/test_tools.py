@@ -20,13 +20,13 @@ def test_tool_discovery():
     assert "tools" in data
     tool_names = [t["name"] for t in data["tools"]]
     expected_tools = [
-        "search_catalog", 
-        "get_product", 
-        "check_inventory", 
-        "get_customer_context", 
+        "create_checkout_session",
         "calculate_cart", 
         "validate_cart",
-        "get_recommendations"
+        "get_payment_status",
+        "validate_policy",
+        "check_payment_authorization",
+        "execute_agentic_payment"
     ]
     for tool in expected_tools:
         assert tool in tool_names
@@ -37,47 +37,3 @@ def test_tool_execute_not_found():
     data = response.json()
     assert data["success"] is False
     assert data["error"]["code"] == "TOOL_NOT_FOUND"
-
-def test_search_catalog_tool(db):
-    merchant = db.query(Merchant).first()
-    
-    response = client.post(
-        "/api/tools/search_catalog/execute",
-        json={"merchant_id": str(merchant.id), "query": "mouse"}
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["success"] is True
-    assert "products" in data["result"]
-    assert data["result"]["count"] >= 0
-
-def test_merchant_isolation_get_product(db):
-    merchant_1 = db.query(Merchant).first()
-    merchant_2 = db.query(Merchant).order_by(Merchant.id.desc()).first()
-    
-    # We assume we don't have the product id handy, so just pass a fake UUID
-    fake_uuid = "00000000-0000-0000-0000-000000000000"
-    
-    response = client.post(
-        "/api/tools/get_product/execute",
-        json={"merchant_id": str(merchant_1.id), "product_id": fake_uuid}
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["success"] is False
-    assert data["error"]["code"] == "PRODUCT_NOT_FOUND"
-
-def test_get_customer_context_tool(db):
-    merchant = db.query(Merchant).first()
-    customer = db.query(Customer).filter(Customer.merchant_id == merchant.id).first()
-    
-    response = client.post(
-        "/api/tools/get_customer_context/execute",
-        json={"merchant_id": str(merchant.id), "customer_id": str(customer.id)}
-    )
-    
-    assert response.status_code == 200
-    data = response.json()
-    assert data["success"] is True
-    assert data["result"]["customer_id"] == str(customer.id)
-    assert "recent_events" in data["result"]

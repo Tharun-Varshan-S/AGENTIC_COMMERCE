@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from app.models.product import Product
+from app.models.offer import Offer
 from app.models.customer import CustomerEvent
 
 class CandidateGenerator:
@@ -17,9 +18,9 @@ class CandidateGenerator:
         # Fetch all active products for the merchant
         # For a hackathon/MVP, fetching all active products and filtering in memory is fine.
         # In a real app, this would be optimized.
-        candidates_query = select(Product).filter(
+        candidates_query = select(Product).join(Offer, Offer.product_id == Product.id).filter(
             Product.merchant_id == merchant_id,
-            Product.is_active == True,
+            Offer.is_active == True,
             Product.id != primary_product.id
         )
         
@@ -27,8 +28,13 @@ class CandidateGenerator:
 
         valid_candidates = []
         for candidate in candidates:
+            # Find the active offer
+            active_offer = next((o for o in candidate.offers if o.is_active), None)
+            if not active_offer or not active_offer.inventory:
+                continue
+            
             # Basic eligibility filter
-            if not candidate.inventory or (candidate.inventory.quantity - candidate.inventory.reserved_quantity) <= 0:
+            if (active_offer.inventory.quantity - active_offer.inventory.reserved_quantity) <= 0:
                 continue
             valid_candidates.append(candidate)
 
