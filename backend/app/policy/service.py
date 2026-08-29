@@ -60,6 +60,9 @@ class PolicyService:
         from app.models.user import UserSpendingLimit
         spending_limit = self.db.query(UserSpendingLimit).filter(UserSpendingLimit.user_id == customer.user_id).first() if hasattr(customer, 'user_id') else None
         
+        from app.payment.agentic_service import get_active_authorization
+        agentic_auth = get_active_authorization(self.db, request.customer_id)
+        
         context = {
             "merchant": merchant,
             "customer": customer,
@@ -71,7 +74,8 @@ class PolicyService:
             "inventories": inventories,
             "cart_total": cart_total,
             "has_approved_consent": approved_consent is not None,
-            "spending_limit": spending_limit
+            "spending_limit": spending_limit,
+            "agentic_auth": agentic_auth
         }
         
         return self.evaluator.evaluate(context)

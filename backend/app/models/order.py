@@ -72,5 +72,6 @@ class Payment(BaseModel):
     amount = Column(Numeric(10, 2), nullable=False)
     currency = Column(String, default="INR", nullable=False)
     status = Column(String, default="CREATED", nullable=False) # CREATED, AUTHORIZED, CAPTURED, FAILED, REFUNDED
+    agentic_authorization_id = Column(ForeignKey("agentic_payment_authorizations.id"), nullable=True, index=True)
 
     order = relationship("Order", back_populates="payment")

@@ -25,7 +25,8 @@ def create_direct_payment_order(db: Session, req: DirectCheckoutRequest) -> dict
         customer_id=req.customer_id,
         merchant_id=req.merchant_id,
         status="ACTIVE",
-        currency="INR"
+        currency="INR",
+        discount=Decimal('0')
     )
     db.add(cart)
     db.flush()
@@ -41,16 +42,22 @@ def create_direct_payment_order(db: Session, req: DirectCheckoutRequest) -> dict
     db.flush()
     
     # 4. Delegate to the existing robust checkout engine
-    return create_payment_order(
-        db=db,
-        merchant_id=req.merchant_id,
-        customer_id=req.customer_id,
-        cart_id=str(cart.id),
-        source=req.source,
-        agent_trace=req.agent_trace
-    )
+    try:
+        return create_payment_order(
+            db=db,
+            merchant_id=req.merchant_id,
+            customer_id=req.customer_id,
+            cart_id=str(cart.id),
+            source=req.source,
+            agent_trace=req.agent_trace,
+            human_approval=req.human_approval
+        )
+    except Exception as e:
+        if isinstance(e, PaymentStateError):
+            raise e
+        raise PaymentStateError(f"Direct checkout failed: {str(e)}")
 
-def create_payment_order(db: Session, merchant_id: str, customer_id: str, cart_id: str, source: str = "DIRECT", agent_trace: dict = None) -> dict:
+def create_payment_order(db: Session, merchant_id: str, customer_id: str, cart_id: str, source: str = "DIRECT", agent_trace: dict = None, human_approval: bool = False) -> dict:
     # 1. Load the cart
     cart = db.query(Cart).filter(
         Cart.id == cart_id,
@@ -73,6 +80,8 @@ def create_payment_order(db: Session, merchant_id: str, customer_id: str, cart_i
     if decision["decision"] == "REJECTED":
         raise PaymentStateError(f"Checkout rejected: {decision['reasons']}")
     if decision["decision"] == "REQUIRES_CONSENT":
+        if not human_approval:
+            raise PaymentStateError("Consent required: human approval is required for this purchase.")
         # Check if consent is already approved
         # For this MVP, we assume consent check is enforced before this point if REQUIRES_CONSENT,
         # but to be safe we can query ConsentRequest
@@ -87,8 +96,9 @@ def create_payment_order(db: Session, merchant_id: str, customer_id: str, cart_i
     # 3. Calculate authoritative amount
     # Instead of trusting cart.total, we recalculate or trust the engine's recalculation.
     # The policy engine ensures prices are valid. We will just sum cart items safely.
-    total = sum((item.unit_price * item.quantity) for item in cart.items)
-    total -= cart.discount
+    total = sum((item.offer.price * item.quantity) for item in cart.items if item.offer)
+    discount = cart.discount or Decimal('0')
+    total -= discount
     if total <= 0:
         raise PaymentStateError("Invalid cart total")
         
@@ -102,11 +112,10 @@ def create_payment_order(db: Session, merchant_id: str, customer_id: str, cart_i
         cart_id=cart_id,
         order_number=order_number,
         status="PENDING",
-        subtotal=total + cart.discount,
-        discount=cart.discount,
+        subtotal=total + discount,
+        discount=discount,
         total=total,
-        source=source,
-        metadata_json={"agent_trace": agent_trace} if agent_trace else {}
+        source=source
     )
     db.add(order)
     db.flush()
@@ -131,7 +140,7 @@ def create_payment_order(db: Session, merchant_id: str, customer_id: str, cart_i
     rp_order = create_rp_order(
         amount_paise=amount_paise,
         currency="INR",
-        receipt=order.id
+        receipt=str(order.id)
     )
 
     # 7. Create local Payment
@@ -145,17 +154,14 @@ def create_payment_order(db: Session, merchant_id: str, customer_id: str, cart_i
     )
     db.add(payment)
 
-    # 8. Mark cart as CHECKOUT
-    cart.status = "CHECKOUT"
-
     # 9. Audit log
     audit = AuditLog(
         merchant_id=merchant_id,
         customer_id=customer_id,
         action="PAYMENT_ORDER_CREATED",
-        entity_type="payment",
-        entity_id=payment.id,
-        details={"razorpay_order_id": rp_order["id"], "amount": str(total)}
+        event_type="payment",
+        actor_type="SYSTEM",
+        metadata_json={"razorpay_order_id": rp_order["id"], "amount": str(total), "payment_id": str(payment.id), "agent_trace": agent_trace}
     )
     db.add(audit)
     
@@ -170,7 +176,7 @@ def create_payment_order(db: Session, merchant_id: str, customer_id: str, cart_i
     }
 
 def verify_payment(db: Session, payment_id: str, rp_payment_id: str, rp_order_id: str, rp_signature: str) -> dict:
-    payment = db.query(Payment).filter(Payment.id == payment_id).first()
+    payment = db.query(Payment).filter(Payment.id == payment_id).with_for_update().first()
     if not payment:
         raise PaymentStateError("Payment not found")
         
@@ -184,9 +190,9 @@ def verify_payment(db: Session, payment_id: str, rp_payment_id: str, rp_order_id
             merchant_id=order.merchant_id,
             customer_id=order.customer_id,
             action="PAYMENT_VERIFICATION_FAILED",
-            entity_type="payment",
-            entity_id=payment.id,
-            details={"error": str(e)}
+            event_type="payment",
+            actor_type="SYSTEM",
+            metadata_json={"error": str(e), "payment_id": str(payment.id)}
         )
         db.add(audit)
         db.commit()
@@ -237,7 +243,7 @@ def process_webhook(db: Session, payload: dict):
         rp_payment_id = payment_entity.get("id")
         
         if rp_order_id:
-            payment = db.query(Payment).filter_by(provider_order_id=rp_order_id).first()
+            payment = db.query(Payment).filter_by(provider_order_id=rp_order_id).with_for_update().first()
             if payment and payment.status != "CAPTURED":
                 payment.status = "CAPTURED"
                 payment.provider_payment_id = rp_payment_id
@@ -251,7 +257,7 @@ def process_webhook(db: Session, payload: dict):
         rp_order_id = payment_entity.get("order_id")
         
         if rp_order_id:
-            payment = db.query(Payment).filter_by(provider_order_id=rp_order_id).first()
+            payment = db.query(Payment).filter_by(provider_order_id=rp_order_id).with_for_update().first()
             if payment and payment.status not in ["CAPTURED", "REFUNDED"]:
                 payment.status = "FAILED"
                 order = payment.order
@@ -261,9 +267,9 @@ def process_webhook(db: Session, payload: dict):
                     merchant_id=order.merchant_id,
                     customer_id=order.customer_id,
                     action="PAYMENT_FAILED",
-                    entity_type="payment",
-                    entity_id=payment.id,
-                    details={"razorpay_order_id": rp_order_id}
+                    event_type="payment",
+                    actor_type="SYSTEM",
+                    metadata_json={"razorpay_order_id": rp_order_id, "payment_id": str(payment.id)}
                 )
                 db.add(audit)
                 
@@ -282,9 +288,9 @@ def _finalize_order(db: Session, order: Order, payment: Payment):
             merchant_id=order.merchant_id,
             customer_id=order.customer_id,
             action="PAYMENT_AMOUNT_MISMATCH",
-            entity_type="payment",
-            entity_id=payment.id,
-            details={"expected": str(expected_amount), "actual": str(payment.amount)}
+            event_type="payment",
+            actor_type="SYSTEM",
+            metadata_json={"expected": str(expected_amount), "actual": str(payment.amount), "payment_id": str(payment.id)}
         )
         db.add(audit)
         raise AmountMismatchError("Payment amount does not match order total")
@@ -298,16 +304,20 @@ def _finalize_order(db: Session, order: Order, payment: Payment):
             raise PaymentStateError(f"Insufficient inventory for offer {item.offer_id}")
         inv.quantity -= item.quantity
         
-    # 3. Mark paid
+    # 3. Mark paid and cart COMPLETED
     order.status = "PAID"
+    if order.cart_id:
+        cart = db.query(Cart).filter_by(id=order.cart_id).first()
+        if cart:
+            cart.status = "COMPLETED"
     
     # 4. Audit
     audit1 = AuditLog(
         merchant_id=order.merchant_id,
         customer_id=order.customer_id,
         action="ORDER_PAID",
-        entity_type="order",
-        entity_id=order.id,
-        details={"order_number": order.order_number, "source": order.source}
+        event_type="order",
+        actor_type="SYSTEM",
+        metadata_json={"order_number": order.order_number, "source": order.source, "order_id": str(order.id)}
     )
     db.add(audit1)

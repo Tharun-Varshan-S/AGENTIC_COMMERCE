@@ -24,7 +24,9 @@ import {
   chatWithAgent,
   createPaymentOrder,
   createDirectPaymentOrder,
-  verifyPayment
+  verifyPayment,
+  getAgenticAuthorizationStatus,
+  executeAgenticPayment
 } from "@/lib/api";
 import { BuyerHeader } from "@/components/buyer/buyer-header";
 import { AiChat, Message } from "@/components/buyer/ai-chat";
@@ -32,6 +34,7 @@ import { ProductResults } from "@/components/buyer/product-results";
 import { ProductDetails } from "@/components/buyer/product-details";
 import { CartDrawer } from "@/components/buyer/cart-drawer";
 import { RecommendationCard } from "@/components/buyer/recommendation-card";
+import { AgenticPaymentSetup } from "@/components/buyer/agentic-payment-setup";
 
 import { AgentOrchestration, OrchestrationEvent } from "@/components/buyer/agent-orchestration";
 
@@ -166,9 +169,21 @@ export default function BuyerPage() {
       if (response.policy) {
         setPolicyDecision(response.policy);
       }
-      if (response.checkout_session && response.checkout_session.checkout_ready) {
-        await reloadCart();
-        setIsCartOpen(true);
+      if (response.checkout_session) {
+        if (response.checkout_session.agentic_paid) {
+            setMessages(prev => [...prev, {
+              id: Date.now().toString(),
+              sender: "AI ASSISTANT",
+              text: "✅ Agentic Payment successful! Your order has been placed securely without a manual checkout.",
+              toolCalls: response.tool_calls
+            }]);
+            await reloadCart();
+            setIsCartOpen(false);
+            return; // skip the default agent text since we injected our own
+        } else if (response.checkout_session.checkout_ready) {
+            await reloadCart();
+            setIsCartOpen(true);
+        }
       }
       
       setMessages(prev => [...prev, {
@@ -244,15 +259,45 @@ export default function BuyerPage() {
 
   const handleInitiatePurchase = async () => {
     if (!cart) return;
+    
+    // Check if agentic payment is active
+    let hasAgenticAuth = false;
+    try {
+        const authStatus = await getAgenticAuthorizationStatus(selectedCustomerId);
+        if (authStatus && authStatus.status === "ACTIVE") {
+            hasAgenticAuth = true;
+        }
+    } catch(e) {}
+    
+    const executeCheckout = async () => {
+        if (hasAgenticAuth) {
+             try {
+                 await executeAgenticPayment(merchantId, selectedCustomerId, cart.id);
+                 setMessages(prev => [...prev, {
+                     id: Date.now().toString(),
+                     sender: "AI ASSISTANT",
+                     text: "✅ Agentic Payment executed successfully after consent!"
+                 }]);
+                 await reloadCart();
+                 setIsCartOpen(false);
+             } catch(err: any) {
+                 setError(err.message);
+             }
+        } else {
+             try {
+                 const orderRes = await createPaymentOrder(merchantId, selectedCustomerId, cart.id);
+                 handleRazorpayCheckout(orderRes);
+             } catch(err: any) {
+                 setError(err.message);
+             }
+        }
+    };
+    
     if (policyDecision?.decision === 'ALLOWED') {
-       try {
-         const orderRes = await createPaymentOrder(merchantId, selectedCustomerId, cart.id);
-         handleRazorpayCheckout(orderRes);
-       } catch (err: any) {
-         setError(err.message);
-       }
-       return;
+        await executeCheckout();
+        return;
     }
+    
     if (policyDecision?.decision === 'REQUIRES_CONSENT') {
        try {
            setIsProcessingConsent(true);
@@ -261,14 +306,7 @@ export default function BuyerPage() {
              setIsConsentModalOpen(false);
              setConsentRequest(null);
              await reloadCart();
-             
-             // Now proceed with checkout since consent is approved
-             try {
-               const orderRes = await createPaymentOrder(merchantId, selectedCustomerId, cart.id);
-               handleRazorpayCheckout(orderRes);
-             } catch (paymentErr: any) {
-               setError(paymentErr.message);
-             }
+             await executeCheckout();
            } else {
              setConsentRequest(res);
              setIsConsentModalOpen(true);
@@ -282,9 +320,45 @@ export default function BuyerPage() {
   };
 
   const handleApproveConsent = async () => {
-    // This assumes the API handles the approval logic
-    // Implementation dependent on backend state flow
-    await handleInitiatePurchase();
+    if (!consentRequest) return;
+    setIsProcessingConsent(true);
+    try {
+        await approveConsent(consentRequest.id);
+        setIsConsentModalOpen(false);
+        setConsentRequest(null);
+        await reloadCart();
+        
+        // Use the checkout logic
+        let hasAgenticAuth = false;
+        try {
+            const authStatus = await getAgenticAuthorizationStatus(selectedCustomerId);
+            if (authStatus && authStatus.status === "ACTIVE") {
+                hasAgenticAuth = true;
+            }
+        } catch(e) {}
+        
+        if (hasAgenticAuth) {
+             try {
+                 await executeAgenticPayment(merchantId, selectedCustomerId, cart.id);
+                 setMessages(prev => [...prev, {
+                     id: Date.now().toString(),
+                     sender: "AI ASSISTANT",
+                     text: "✅ Agentic Payment executed successfully after manual approval!"
+                 }]);
+                 await reloadCart();
+                 setIsCartOpen(false);
+             } catch(err: any) {
+                 setError(err.message);
+             }
+        } else {
+             const orderRes = await createPaymentOrder(merchantId, selectedCustomerId, cart.id);
+             handleRazorpayCheckout(orderRes);
+        }
+    } catch (err: any) {
+        setError(err.message || "Failed to approve consent");
+    } finally {
+        setIsProcessingConsent(false);
+    }
   };
   
   const handleDeclineConsent = () => {
@@ -376,6 +450,10 @@ export default function BuyerPage() {
           )}
 
           <div className="max-w-5xl mx-auto space-y-8">
+            {selectedCustomerId && (
+               <AgenticPaymentSetup customerId={selectedCustomerId} />
+            )}
+            
             <ProductResults 
               products={products}
               isLoading={isProductsLoading}

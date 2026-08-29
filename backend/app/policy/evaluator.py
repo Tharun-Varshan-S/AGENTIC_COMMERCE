@@ -8,7 +8,8 @@ from app.policy.rules import (
     DiscountLimitRule,
     MinimumMarginRule,
     ConsentRequirementRule,
-    UserSpendingLimitRule
+    UserSpendingLimitRule,
+    AgenticSpendingLimitRule
 )
 from decimal import Decimal
 from app.models.merchant import MerchantRule
@@ -22,11 +23,12 @@ class PolicyEvaluator:
             DiscountLimitRule(),
             MinimumMarginRule(),
             MaxTransactionRule(),
-            UserSpendingLimitRule()
+            UserSpendingLimitRule(),
+            PriceIntegrityRule()
         ]
         self.consent_rules = [
-            PriceIntegrityRule(),
-            ConsentRequirementRule()
+            ConsentRequirementRule(),
+            AgenticSpendingLimitRule()
         ]
 
     def evaluate(self, context: Dict[str, Any]) -> PolicyDecision:

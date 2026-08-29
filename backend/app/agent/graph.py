@@ -112,6 +112,16 @@ def agent_node(state: AgentState, config: RunnableConfig):
         else:
             context_msg = "Search Results Context: The search pipeline was executed but NO products were found in the catalog matching the user's criteria. Inform the user that no products were found and ask them to adjust their search terms or budget. DO NOT attempt to search manually using tools."
         messages.append(SystemMessage(content=context_msg))
+        
+    # Inject auth context
+    from app.payment.agentic_service import get_active_authorization
+    db = config.get("configurable", {}).get("db")
+    customer_id = config.get("configurable", {}).get("customer_id")
+    if db and customer_id:
+        auth = get_active_authorization(db, customer_id)
+        if auth:
+            auth_msg = f"User has an active Agentic Payment capability (Rail: {auth.rail}). Per transaction limit: {auth.per_transaction_limit}. Remaining daily limit: {auth.daily_limit - auth.spent_today}. You can execute payments autonomously if within this limit by asking for their approval and then using execute_agentic_payment."
+            messages.append(SystemMessage(content=auth_msg))
             
     # Check max tool calls
     if state.get("tool_call_count", 0) >= MAX_TOOL_CALLS:
@@ -180,6 +190,8 @@ def tools_node(state: AgentState, config: RunnableConfig):
             elif name == "validate_policy":
                 state_updates["policy"] = result
                 state_updates["requires_consent"] = result.get("requires_consent", False) if isinstance(result, dict) else False
+            elif name == "execute_agentic_payment":
+                state_updates["checkout_session"] = {"checkout_ready": False, "agentic_paid": True}
                 
             content = json.dumps(output)
             

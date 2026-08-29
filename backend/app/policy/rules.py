@@ -163,3 +163,21 @@ class UserSpendingLimitRule(PolicyRule):
                     message=f"Transaction exceeds the user's daily spending limit of {spending_limit.daily_limit}."
                 )]
         return []
+
+class AgenticSpendingLimitRule(PolicyRule):
+    def evaluate(self, context: Dict[str, Any]) -> List[PolicyReason]:
+        cart_total: Decimal = context["cart_total"]
+        agentic_auth = context.get("agentic_auth")
+        
+        if agentic_auth and agentic_auth.status == "ACTIVE":
+            if cart_total > agentic_auth.per_transaction_limit:
+                return [PolicyReason(
+                    code="AGENTIC_TRANSACTION_LIMIT_EXCEEDED",
+                    message=f"Transaction amount {cart_total} exceeds the agentic per-transaction limit of {agentic_auth.per_transaction_limit}."
+                )]
+            if agentic_auth.spent_today + cart_total > agentic_auth.daily_limit:
+                return [PolicyReason(
+                    code="AGENTIC_DAILY_LIMIT_EXCEEDED",
+                    message=f"Transaction amount {cart_total} would exceed the remaining agentic daily limit."
+                )]
+        return []

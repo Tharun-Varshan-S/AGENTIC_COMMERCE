@@ -35,3 +35,13 @@ class RazorpayVerifyRequest(BaseModel):
 class PaymentStatusResponse(BaseModel):
     payment_id: str
     status: str
+
+class AgenticSetupRequest(BaseModel):
+    customer_id: str
+    per_transaction_limit: float
+    daily_limit: float
+
+class ExecuteAgenticRequest(BaseModel):
+    merchant_id: str
+    customer_id: str
+    cart_id: str
