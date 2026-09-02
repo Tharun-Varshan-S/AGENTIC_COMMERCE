@@ -24,7 +24,7 @@ class CartItemResponse(ORMBase):
     product: Optional[ProductResponse] = None
 
 class CartBase(BaseModel):
-    customer_id: UUID
+    customer_id: Optional[UUID] = None
 
 class CartCreate(CartBase):
     merchant_id: UUID

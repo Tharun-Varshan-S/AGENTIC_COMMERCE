@@ -22,6 +22,15 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
         verify_webhook_signature(body, signature)
     except WebhookVerificationError as e:
         logger.error(f"Webhook signature verification failed: {str(e)}")
+        from app.models.audit import AuditLog
+        audit = AuditLog(
+            action="WEBHOOK_SIGNATURE_MISMATCH",
+            event_type="security",
+            actor_type="EXTERNAL",
+            metadata_json={"error": str(e), "headers": dict(request.headers)}
+        )
+        db.add(audit)
+        db.commit()
         raise HTTPException(status_code=400, detail="Invalid signature")
         
     try:

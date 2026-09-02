@@ -32,7 +32,7 @@ class Order(BaseModel):
 
     merchant_id = Column(ForeignKey("merchants.id"), nullable=False, index=True)
     customer_id = Column(ForeignKey("customers.id"), nullable=False, index=True)
-    cart_id = Column(ForeignKey("carts.id"), nullable=False, unique=True, index=True)
+    cart_id = Column(ForeignKey("carts.id"), nullable=True, unique=True, index=True)
     order_number = Column(String, nullable=False, unique=True, index=True)
     status = Column(String, default="PENDING", nullable=False) # PENDING, CONFIRMED, PAID, CANCELLED, FAILED
     source = Column(String, default="DIRECT", nullable=False) # DIRECT, AI

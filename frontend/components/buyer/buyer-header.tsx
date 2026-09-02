@@ -1,27 +1,19 @@
 "use client";
 
 import { ShoppingCart, Bot } from "lucide-react";
-
-type Customer = {
-  id: string;
-  name: string;
-};
+import { useAuth } from "@/components/auth-provider";
 
 type BuyerHeaderProps = {
-  customers: Customer[];
-  selectedCustomerId: string;
-  onCustomerSelect: (id: string) => void;
   cartItemCount: number;
   onCartClick: () => void;
 };
 
 export function BuyerHeader({
-  customers,
-  selectedCustomerId,
-  onCustomerSelect,
   cartItemCount,
   onCartClick,
 }: BuyerHeaderProps) {
+  const { user } = useAuth();
+  
   return (
     <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
       <div className="flex items-center space-x-3 text-indigo-600">
@@ -34,18 +26,7 @@ export function BuyerHeader({
       <div className="flex items-center space-x-6">
         <div className="flex items-center space-x-2 text-sm text-gray-600">
           <span>Shopping as:</span>
-          <select
-            className="border-gray-300 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-            value={selectedCustomerId}
-            onChange={(e) => onCustomerSelect(e.target.value)}
-          >
-            <option value="" disabled>Select customer...</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <span className="font-medium text-gray-900">{user?.full_name || user?.email || "Guest"}</span>
         </div>
 
         <button

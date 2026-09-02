@@ -12,7 +12,8 @@ def get_agent_response_stream(request: ChatRequest, db_session: Session):
     config = {
         "configurable": {
             "thread_id": request.session_id,
-            "db": db_session
+            "db": db_session,
+            "customer_id": request.customer_id
         }
     }
     
@@ -88,8 +89,10 @@ def get_agent_response_stream(request: ChatRequest, db_session: Session):
         if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
             for tc in reversed(msg.tool_calls):
                 args = tc.get("args", {})
-                reason = args.get("reason", "No reason provided.")
-                tool_calls_log.insert(0, ToolCallLog(tool=tc["name"], reason=reason).model_dump())
+                audit_reason = args.get("audit_reason")
+                if not audit_reason:
+                    audit_reason = "INVALID_EXECUTION_NO_REASON_PROVIDED"
+                tool_calls_log.insert(0, ToolCallLog(tool=tc["name"], audit_reason=audit_reason).model_dump())
                 
     response_data = {
         "session_id": request.session_id,

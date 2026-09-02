@@ -6,7 +6,7 @@ from app.policy.schemas import PolicyReason
 
 class ConsentRequestInput(BaseModel):
     merchant_id: str
-    customer_id: str
+    customer_id: Optional[str] = None
     cart_id: str
 
 class ConsentRequestResponse(BaseModel):

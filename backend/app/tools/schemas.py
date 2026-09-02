@@ -58,3 +58,9 @@ class GetRevenueRecommendationInput(BaseModel):
     primary_product_id: UUID
     customer_intent: str
     customer_budget: Optional[Decimal] = None
+
+# Tool 9: suggest_upsell
+class SuggestUpsellInput(BaseModel):
+    merchant_id: UUID
+    customer_id: UUID
+    cart_id: UUID

@@ -27,7 +27,7 @@ def _adapt_tool(commerce_tool: CommerceTool) -> StructuredTool:
     for field_name, field_info in original_schema.model_fields.items():
         fields[field_name] = (field_info.annotation, field_info)
         
-    fields["reason"] = (str, Field(..., description="Short, single-sentence reason for why you are executing this tool."))
+    fields["audit_reason"] = (str, Field(..., description="MANDATORY: Provide a short, single-sentence reason explaining why you are executing this tool for the audit log."))
     
     # Create the new schema with the reason field
     enhanced_schema = create_model(
@@ -41,8 +41,8 @@ def _adapt_tool(commerce_tool: CommerceTool) -> StructuredTool:
         if not db:
             raise RuntimeError("Database session not found in RunnableConfig. Ensure you pass 'db' via config.")
             
-        # The LLM will provide 'reason', but we don't pass it to the commerce tool logic.
-        reason = kwargs.pop("reason", "No reason provided.")
+        # The LLM must provide 'audit_reason' per the schema. We pop it so it's not passed to the tool.
+        audit_reason = kwargs.pop("audit_reason")
         
         import hashlib
         import json
@@ -61,7 +61,7 @@ def _adapt_tool(commerce_tool: CommerceTool) -> StructuredTool:
         if existing:
             return {
                 "result": existing.result_json,
-                "reason": reason,
+                "audit_reason": audit_reason,
                 "note": "Returned cached result due to idempotency."
             }
         
@@ -84,7 +84,7 @@ def _adapt_tool(commerce_tool: CommerceTool) -> StructuredTool:
             
         return {
             "result": dumped_result,
-            "reason": reason
+            "audit_reason": audit_reason
         }
 
     return StructuredTool.from_function(

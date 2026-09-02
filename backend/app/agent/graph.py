@@ -12,8 +12,28 @@ from app.agent.tools import create_agent_tools
 from app.agent.prompts import SYSTEM_PROMPT
 from app.agent.models import ShoppingIntent
 from app.agent.merchants import get_available_merchants
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception
 
 MAX_TOOL_CALLS = 8
+
+def is_retryable_exception(exception: Exception) -> bool:
+    error_msg = str(exception).lower()
+    if "429" in error_msg or "resource_exhausted" in error_msg or "quota" in error_msg:
+        return True
+    
+    # Catch 5xx if it's a known client error
+    if hasattr(exception, "code") and getattr(exception, "code", 0) >= 500:
+        return True
+    return False
+
+@retry(
+    wait=wait_exponential(multiplier=2, min=2, max=8),
+    stop=stop_after_attempt(3),
+    retry=retry_if_exception(is_retryable_exception),
+    reraise=True
+)
+def invoke_llm_with_retry(llm, messages):
+    return llm.invoke(messages)
 
 def plan_node(state: AgentState, config: RunnableConfig):
     """Parses user input into a structured ShoppingIntent if applicable."""
@@ -29,11 +49,16 @@ def plan_node(state: AgentState, config: RunnableConfig):
     llm = get_llm()
     structured_llm = llm.with_structured_output(ShoppingIntent)
     
-    intent = structured_llm.invoke([
-        SystemMessage(content="You are a shopping assistant planner. Extract the user's shopping intent. If the user is just saying hello or asking a general question, set is_search to false."),
-        last_msg
-    ])
-    return {"shopping_intent": intent.model_dump()}
+    try:
+        intent = invoke_llm_with_retry(structured_llm, [
+            SystemMessage(content="You are a shopping assistant planner. Extract the user's shopping intent. If the user is just saying hello or asking a general question, set is_search to false."),
+            last_msg
+        ])
+        return {"shopping_intent": intent.model_dump()}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"shopping_intent": {"is_search": False, "query": "", "keywords": []}}
 
 def discover_node(state: AgentState, config: RunnableConfig):
     """Finds all capabilities and merchants available."""
@@ -100,8 +125,13 @@ def agent_node(state: AgentState, config: RunnableConfig):
     llm = get_llm().bind_tools(tools)
     
     messages = list(state.get("messages", []))
-    if not messages or not isinstance(messages[0], SystemMessage):
-        messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
+    system_prompt = SYSTEM_PROMPT
+    
+    # Inject user and merchant context
+    merchant_id = config.get("configurable", {}).get("merchant_id", state.get("merchant_id"))
+    customer_id = config.get("configurable", {}).get("customer_id", state.get("customer_id"))
+    
+    system_prompt += f"\n\nCURRENT CONTEXT:\n- Merchant ID: {merchant_id}\n- Customer ID: {customer_id}\nUse these IDs when calling tools."
         
     # Inject context from pipeline if we did a search
     intent = state.get("shopping_intent")
@@ -111,31 +141,55 @@ def agent_node(state: AgentState, config: RunnableConfig):
             context_msg = f"Search Results Context: The search pipeline was executed. Found {len(products)} products across merchants based on your plan. Summarize these briefly to the user. Results: {json.dumps(products)}"
         else:
             context_msg = "Search Results Context: The search pipeline was executed but NO products were found in the catalog matching the user's criteria. Inform the user that no products were found and ask them to adjust their search terms or budget. DO NOT attempt to search manually using tools."
-        messages.append(SystemMessage(content=context_msg))
+        system_prompt += "\n\n" + context_msg
         
     # Inject auth context
     from app.payment.agentic_service import get_active_authorization
     db = config.get("configurable", {}).get("db")
-    customer_id = config.get("configurable", {}).get("customer_id")
     if db and customer_id:
         auth = get_active_authorization(db, customer_id)
         if auth:
-            auth_msg = f"User has an active Agentic Payment capability (Rail: {auth.rail}). Per transaction limit: {auth.per_transaction_limit}. Remaining daily limit: {auth.daily_limit - auth.spent_today}. You can execute payments autonomously if within this limit by asking for their approval and then using execute_agentic_payment."
-            messages.append(SystemMessage(content=auth_msg))
+            auth_msg = f"User has an active Agentic Payment capability (Rail: {auth.rail}). Per transaction limit: {auth.per_transaction_limit}. Remaining daily limit: {auth.daily_limit - auth.spent_today}. You can execute payments autonomously if within this limit by asking for their approval and then using execute_agentic_payment. IMPORTANT: Before executing payment, you MUST invoke the suggest_upsell tool once per checkout session to check for any high-margin upsell candidates."
+            system_prompt += "\n\n" + auth_msg
+
+    if not messages or not isinstance(messages[0], SystemMessage):
+        messages = [SystemMessage(content=system_prompt)] + messages
+    else:
+        # If there's already a system message, replace it to include the dynamic context
+        messages[0] = SystemMessage(content=system_prompt)
             
     # Check max tool calls
     if state.get("tool_call_count", 0) >= MAX_TOOL_CALLS:
         return {"messages": [AIMessage(content="I wasn't able to fully resolve this — could you clarify what you're looking for?")]}
         
     try:
-        response = llm.invoke(messages)
+        response = invoke_llm_with_retry(llm, messages)
         return {"messages": [response]}
     except Exception as e:
         import traceback
         traceback.print_exc()
+        
+        # Log to AuditLog on catastrophic failure
+        db = config.get("configurable", {}).get("db")
+        customer_id = config.get("configurable", {}).get("customer_id")
+        merchant_id = config.get("configurable", {}).get("merchant_id")
+        
+        if db and customer_id and merchant_id:
+            from app.models.audit import AuditLog
+            audit = AuditLog(
+                merchant_id=merchant_id,
+                customer_id=customer_id,
+                event_type="agent_failure",
+                actor_type="SYSTEM",
+                action="LLM Rate Limit / Exhaustion after retries",
+                metadata_json={"error": str(e)}
+            )
+            db.add(audit)
+            db.commit()
+            
         error_msg = str(e).lower()
         if "429" in error_msg or "resource_exhausted" in error_msg or "quota" in error_msg:
-            return {"messages": [AIMessage(content="The AI agent is temporarily unavailable because the Gemini API quota has been exhausted. Please retry after a few moments.")]}
+            return {"messages": [AIMessage(content="I'm having trouble reaching the assistant right now, please try again in a moment")]}
         return {"messages": [AIMessage(content=f"An unexpected error occurred during agent execution: {str(e)}")]}
 
 def tools_node(state: AgentState, config: RunnableConfig):
@@ -160,8 +214,9 @@ def tools_node(state: AgentState, config: RunnableConfig):
             if isinstance(output, str):
                 try:
                     output = json.loads(output)
-                except:
-                    pass
+                except json.JSONDecodeError as e:
+                    import logging
+                    logging.getLogger(__name__).warning("Failed to parse tool output as JSON: %s", str(e))
                     
             if isinstance(output, dict) and "result" in output:
                 result = output["result"]
@@ -192,6 +247,8 @@ def tools_node(state: AgentState, config: RunnableConfig):
                 state_updates["requires_consent"] = result.get("requires_consent", False) if isinstance(result, dict) else False
             elif name == "execute_agentic_payment":
                 state_updates["checkout_session"] = {"checkout_ready": False, "agentic_paid": True}
+            elif name == "suggest_upsell":
+                state_updates["upsell_suggestions"] = result.get("suggestions", []) if isinstance(result, dict) else []
                 
             content = json.dumps(output)
             

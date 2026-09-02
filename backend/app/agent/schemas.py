@@ -21,6 +21,7 @@ class AgentState(TypedDict):
     policy: Optional[Dict[str, Any]]
     requires_consent: bool
     payment_order: Optional[Dict[str, Any]]
+    upsell_suggestions: Optional[List[Dict[str, Any]]]
     
     # New orchestration state fields for Agentic Commerce pipeline
     shopping_intent: Optional[Dict[str, Any]] # Serialized ShoppingIntent
@@ -31,12 +32,12 @@ class AgentState(TypedDict):
 class ChatRequest(BaseModel):
     session_id: str = Field(..., description="Unique session ID for the conversation")
     merchant_id: str = Field(..., description="The merchant ID")
-    customer_id: str = Field(..., description="The customer ID")
+    customer_id: Optional[str] = Field(None, description="The customer ID")
     message: str = Field(..., description="The user's text message")
 
 class ToolCallLog(BaseModel):
     tool: str = Field(..., description="The name of the tool called")
-    reason: str = Field(..., description="A short, one-line LLM-generated reason for why this tool was called")
+    audit_reason: str = Field(..., description="A short, one-line LLM-generated reason for why this tool was called")
 
 class ChatResponse(BaseModel):
     session_id: str = Field(..., description="Unique session ID")
@@ -53,3 +54,4 @@ class ChatResponse(BaseModel):
     policy: Optional[Dict[str, Any]] = None
     requires_consent: bool = False
     payment_order: Optional[Dict[str, Any]] = None
+    upsell_suggestions: Optional[List[Dict[str, Any]]] = None

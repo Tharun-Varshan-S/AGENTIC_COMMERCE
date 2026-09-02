@@ -54,8 +54,11 @@ class CoreRepository:
     def get_all_inventory(self) -> List[Inventory]:
         return self.db.scalars(select(Inventory)).all()
 
-    def get_customers(self) -> List[Customer]:
-        return self.db.scalars(select(Customer)).all()
+    def get_customers(self, merchant_id: Optional[UUID] = None) -> List[Customer]:
+        query = select(Customer)
+        if merchant_id:
+            query = query.filter(Customer.merchant_id == merchant_id)
+        return self.db.scalars(query).all()
 
     def get_merchant_rules(self, merchant_id: UUID) -> List[MerchantRule]:
         return self.db.scalars(select(MerchantRule).filter(MerchantRule.merchant_id == merchant_id)).all()

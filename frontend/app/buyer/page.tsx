@@ -8,7 +8,6 @@ declare global {
 
 import { useState, useEffect } from "react";
 import { 
-  fetchCustomers, 
   fetchProducts, 
   fetchActiveCart, 
   createCart, 
@@ -26,8 +25,11 @@ import {
   createDirectPaymentOrder,
   verifyPayment,
   getAgenticAuthorizationStatus,
-  executeAgenticPayment
+  executeAgenticPayment,
+  executeDirectAgenticPayment,
+  respondToUpsell
 } from "@/lib/api";
+import { useAuth } from "@/components/auth-provider";
 import { BuyerHeader } from "@/components/buyer/buyer-header";
 import { AiChat, Message } from "@/components/buyer/ai-chat";
 import { ProductResults } from "@/components/buyer/product-results";
@@ -40,9 +42,7 @@ import { AgentOrchestration, OrchestrationEvent } from "@/components/buyer/agent
 
 // Initialize
 export default function BuyerPage() {
-  const [customers, setCustomers] = useState<any[]>([]);
   const [merchantId, setMerchantId] = useState<string>("");
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [cart, setCart] = useState<any>(null);
   const [sessionId] = useState<string>(() => Date.now().toString());
   
@@ -58,22 +58,27 @@ export default function BuyerPage() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCartLoading, setIsCartLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [upsellSuggestions, setUpsellSuggestions] = useState<any[]>([]);
   
   // Policy & Consent State
   const [policyDecision, setPolicyDecision] = useState<any>(null);
   const [consentRequest, setConsentRequest] = useState<any>(null);
   const [isConsentModalOpen, setIsConsentModalOpen] = useState(false);
   const [isProcessingConsent, setIsProcessingConsent] = useState(false);
+  
+  // Agentic Payment processing state
+  const [isProcessingBuyNow, setIsProcessingBuyNow] = useState(false);
+  const [agenticPurchaseTimeline, setAgenticPurchaseTimeline] = useState<string[]>([]);
+  
+  const { user, isLoading } = useAuth();
 
   // Initialize
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const [custs, merchants] = await Promise.all([
-          fetchCustomers(),
+        const [merchants] = await Promise.all([
           fetchMerchants()
         ]);
-        setCustomers(custs);
         if (merchants && merchants.length > 0) {
           setMerchantId(merchants[0].id);
         }
@@ -84,20 +89,20 @@ export default function BuyerPage() {
     loadInitialData();
   }, []);
 
-  // Load cart and recommendations when customer changes
+  // Load cart and recommendations when merchant changes
   useEffect(() => {
-    if (!selectedCustomerId || !merchantId) return;
+    if (!merchantId) return;
     
     async function loadCustomerData() {
       try {
-        let activeCart = await fetchActiveCart(selectedCustomerId);
+        let activeCart = await fetchActiveCart(merchantId);
         if (!activeCart && merchantId) {
-          activeCart = await createCart(selectedCustomerId, merchantId);
+          activeCart = await createCart(merchantId);
         }
         setCart(activeCart);
         setRecommendation(null);
         if (activeCart && activeCart.items && activeCart.items.length > 0) {
-            checkPolicy(merchantId, selectedCustomerId, activeCart.id);
+            checkPolicy(merchantId, activeCart.id);
         } else {
             setPolicyDecision(null);
         }
@@ -106,11 +111,11 @@ export default function BuyerPage() {
       }
     }
     loadCustomerData();
-  }, [selectedCustomerId, merchantId]);
+  }, [merchantId]);
 
-  const checkPolicy = async (mId: string, cId: string, cartId: string) => {
+  const checkPolicy = async (mId: string, cartId: string) => {
     try {
-      const decision = await evaluatePolicy(mId, cId, cartId);
+      const decision = await evaluatePolicy(mId, cartId);
       setPolicyDecision(decision);
     } catch (err) {
       console.error("Failed to evaluate policy", err);
@@ -118,12 +123,12 @@ export default function BuyerPage() {
   };
 
   const reloadCart = async () => {
-    if (!selectedCustomerId || !merchantId) return;
+    if (!merchantId) return;
     try {
-      const activeCart = await fetchActiveCart(selectedCustomerId);
+      const activeCart = await fetchActiveCart(merchantId);
       setCart(activeCart);
       if (activeCart && activeCart.items && activeCart.items.length > 0) {
-        checkPolicy(merchantId, selectedCustomerId, activeCart.id);
+        checkPolicy(merchantId, activeCart.id);
       } else {
         setPolicyDecision(null);
       }
@@ -139,12 +144,12 @@ export default function BuyerPage() {
     setIsProductsLoading(true);
     setError(null);
     setOrchestrationEvents([]);
+    setUpsellSuggestions([]);
 
     try {
       const response = await chatWithAgent(
         sessionId, 
         merchantId, 
-        selectedCustomerId, 
         text,
         (event) => {
           setOrchestrationEvents(prev => [...prev, event]);
@@ -186,6 +191,10 @@ export default function BuyerPage() {
         }
       }
       
+      if (response.upsell_suggestions && response.upsell_suggestions.length > 0) {
+        setUpsellSuggestions(response.upsell_suggestions);
+      }
+      
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         sender: "AI ASSISTANT",
@@ -193,11 +202,29 @@ export default function BuyerPage() {
         toolCalls: response.tool_calls
       }]);
 
-    } catch (err) {
+    } catch (err: any) {
+      console.error("Agent communication error:", err);
+      
+      let errorMessage = "I'm having trouble connecting to the AI assistant right now. Please try again.";
+      
+      if (err.name === 'APIError' || typeof err.status === 'number') {
+        if (err.status === 404) {
+          errorMessage = "Connection issue: Unable to reach the AI assistant.";
+        } else if (err.status === 401 || err.status === 403) {
+          errorMessage = "Please sign in to chat with the AI assistant.";
+        } else if (err.status === 429) {
+          errorMessage = err.message || "I'm receiving too many requests right now. Please wait a moment and try again.";
+        } else if (err.status !== 500 && err.message) {
+          errorMessage = err.message;
+        }
+      } else if (err.message && err.message.includes('NetworkError')) {
+        errorMessage = "Connection issue: Unable to reach the AI assistant.";
+      }
+
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         sender: "AI ASSISTANT",
-        text: "I'm having trouble connecting to the AI assistant right now. Please try again."
+        text: errorMessage
       }]);
     } finally {
       setIsChatLoading(false);
@@ -206,8 +233,8 @@ export default function BuyerPage() {
   };
 
   const handleAddToCart = async (product: any) => {
-    if (!selectedCustomerId || !cart) {
-      alert("Please select a customer first.");
+    if (!cart) {
+      alert("Cart not ready.");
       return;
     }
     try {
@@ -219,17 +246,67 @@ export default function BuyerPage() {
   };
 
   const handleBuyNow = async (product: any) => {
-    if (!selectedCustomerId || !merchantId) {
-      alert("Please select a customer first.");
+    if (!merchantId) {
+      alert("Merchant not ready.");
       return;
     }
+
+    // Check if agentic payment is active
+    let hasAgenticAuth = false;
     try {
-      const orderRes = await createDirectPaymentOrder(merchantId, selectedCustomerId, product.id, product.offer_id, 1);
+        const authStatus = await getAgenticAuthorizationStatus(merchantId);
+        if (authStatus && authStatus.status === "ACTIVE") {
+            hasAgenticAuth = true;
+        }
+    } catch(e) {}
+    
+    if (hasAgenticAuth) {
+        setIsProcessingBuyNow(true);
+        setAgenticPurchaseTimeline([
+          "✓ Buyer authenticated",
+          "✓ Agentic payment authorization verified",
+          "⏳ Processing payment..."
+        ]);
+        try {
+            const res = await executeDirectAgenticPayment(merchantId, product.offer_id, 1);
+            setAgenticPurchaseTimeline([
+              "✓ Buyer authenticated",
+              "✓ Agentic payment authorization verified",
+              "✓ Spending limit verified",
+              "✓ Product availability verified",
+              "✓ Payment initiated",
+              "✓ Payment successful",
+              `Order ID: ${res.order_number}`,
+              `Payment ID: ${res.payment_id}`
+            ]);
+            setMessages(prev => [...prev, {
+                id: Date.now().toString(),
+                sender: "AI ASSISTANT",
+                text: `✅ Purchase completed! Agentic Payment successful for ${product.name}.`
+            }]);
+            
+            // Reload user limits
+            const updateEvent = new CustomEvent('agentic-auth-update');
+            window.dispatchEvent(updateEvent);
+
+            setTimeout(() => {
+                setIsProcessingBuyNow(false);
+                setAgenticPurchaseTimeline([]);
+            }, 4000);
+            await reloadCart();
+        } catch (err: any) {
+            setAgenticPurchaseTimeline([]);
+            setIsProcessingBuyNow(false);
+            setError(`Agentic payment blocked: ${err.message}`);
+        }
+        return;
+    }
+
+    try {
+      const orderRes = await createDirectPaymentOrder(merchantId, product.id, product.offer_id, 1);
       handleRazorpayCheckout(orderRes);
     } catch (err: any) {
       if (err.message && err.message.includes("Consent required")) {
-         // Direct checkout hit a policy limit and was rejected since we do not have an interactive direct consent flow yet,
-         // or it needs handling. For now, inform user to use cart.
          setError("This high-value order requires approval. Please add to cart to proceed with consent flow.");
       } else {
          setError(err.message);
@@ -257,13 +334,29 @@ export default function BuyerPage() {
     }
   };
 
+  const handleUpsellResponse = async (offerId: string, action: 'accept' | 'decline') => {
+    if (!merchantId || !cart) return;
+    try {
+      await respondToUpsell(merchantId, cart.id, offerId, action);
+      
+      // Remove from suggestions array
+      setUpsellSuggestions(prev => prev.filter(s => s.id !== offerId));
+      
+      if (action === 'accept') {
+        await reloadCart();
+      }
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   const handleInitiatePurchase = async () => {
     if (!cart) return;
     
     // Check if agentic payment is active
     let hasAgenticAuth = false;
     try {
-        const authStatus = await getAgenticAuthorizationStatus(selectedCustomerId);
+        const authStatus = await getAgenticAuthorizationStatus(merchantId);
         if (authStatus && authStatus.status === "ACTIVE") {
             hasAgenticAuth = true;
         }
@@ -272,7 +365,7 @@ export default function BuyerPage() {
     const executeCheckout = async () => {
         if (hasAgenticAuth) {
              try {
-                 await executeAgenticPayment(merchantId, selectedCustomerId, cart.id);
+                 await executeAgenticPayment(merchantId, cart.id);
                  setMessages(prev => [...prev, {
                      id: Date.now().toString(),
                      sender: "AI ASSISTANT",
@@ -285,7 +378,7 @@ export default function BuyerPage() {
              }
         } else {
              try {
-                 const orderRes = await createPaymentOrder(merchantId, selectedCustomerId, cart.id);
+                 const orderRes = await createPaymentOrder(merchantId, cart.id);
                  handleRazorpayCheckout(orderRes);
              } catch(err: any) {
                  setError(err.message);
@@ -301,7 +394,7 @@ export default function BuyerPage() {
     if (policyDecision?.decision === 'REQUIRES_CONSENT') {
        try {
            setIsProcessingConsent(true);
-           const res = await requestConsent(merchantId, selectedCustomerId, cart.id);
+           const res = await requestConsent(merchantId, cart.id);
            if (res.status === 'APPROVED') {
              setIsConsentModalOpen(false);
              setConsentRequest(null);
@@ -331,7 +424,7 @@ export default function BuyerPage() {
         // Use the checkout logic
         let hasAgenticAuth = false;
         try {
-            const authStatus = await getAgenticAuthorizationStatus(selectedCustomerId);
+            const authStatus = await getAgenticAuthorizationStatus(merchantId);
             if (authStatus && authStatus.status === "ACTIVE") {
                 hasAgenticAuth = true;
             }
@@ -339,7 +432,7 @@ export default function BuyerPage() {
         
         if (hasAgenticAuth) {
              try {
-                 await executeAgenticPayment(merchantId, selectedCustomerId, cart.id);
+                 await executeAgenticPayment(merchantId, cart.id);
                  setMessages(prev => [...prev, {
                      id: Date.now().toString(),
                      sender: "AI ASSISTANT",
@@ -351,7 +444,7 @@ export default function BuyerPage() {
                  setError(err.message);
              }
         } else {
-             const orderRes = await createPaymentOrder(merchantId, selectedCustomerId, cart.id);
+             const orderRes = await createPaymentOrder(merchantId, cart.id);
              handleRazorpayCheckout(orderRes);
         }
     } catch (err: any) {
@@ -421,12 +514,17 @@ export default function BuyerPage() {
     rzp1.open();
   };
 
+  if (isLoading || !user) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen bg-white">
       <BuyerHeader 
-        customers={customers}
-        selectedCustomerId={selectedCustomerId}
-        onCustomerSelect={setSelectedCustomerId}
         cartItemCount={cart?.items?.length || 0}
         onCartClick={() => setIsCartOpen(true)}
       />
@@ -450,8 +548,8 @@ export default function BuyerPage() {
           )}
 
           <div className="max-w-5xl mx-auto space-y-8">
-            {selectedCustomerId && (
-               <AgenticPaymentSetup customerId={selectedCustomerId} />
+            {merchantId && (
+               <AgenticPaymentSetup merchantId={merchantId} />
             )}
             
             <ProductResults 
@@ -468,6 +566,44 @@ export default function BuyerPage() {
                 onAddToCart={handleAddToCart}
                 onBuyNow={handleBuyNow}
               />
+            )}
+            
+            {upsellSuggestions.length > 0 && (
+              <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-6 shadow-sm">
+                <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center">
+                  <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Frequently Bought Together
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {upsellSuggestions.map(upsell => (
+                    <div key={upsell.id} className="bg-white p-4 rounded-lg border border-indigo-100 flex flex-col justify-between">
+                      <div>
+                        <h4 className="font-semibold text-gray-900 line-clamp-2 mb-1">{upsell.name}</h4>
+                        <p className="text-sm text-gray-500 mb-3">{upsell.reason}</p>
+                      </div>
+                      <div className="flex items-center justify-between mt-4">
+                        <span className="font-bold text-indigo-700">₹{upsell.price}</span>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => handleUpsellResponse(upsell.id, 'decline')}
+                            className="text-xs px-3 py-1.5 border border-gray-300 rounded text-gray-600 hover:bg-gray-50"
+                          >
+                            No Thanks
+                          </button>
+                          <button 
+                            onClick={() => handleUpsellResponse(upsell.id, 'accept')}
+                            className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                          >
+                            Add to Order
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -546,6 +682,25 @@ export default function BuyerPage() {
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : "Approve Purchase"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isProcessingBuyNow && (
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h3 className="text-xl font-bold text-gray-900 text-center">Processing Agentic Payment</h3>
+            </div>
+            <div className="p-6">
+              <div className="space-y-3">
+                {agenticPurchaseTimeline.map((step, idx) => (
+                  <div key={idx} className={`text-sm ${step.includes('✓') ? 'text-green-600 font-medium' : step.includes('Order ID') || step.includes('Payment ID') ? 'text-gray-500 font-mono text-xs' : 'text-gray-900 animate-pulse'}`}>
+                    {step}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

@@ -21,6 +21,7 @@ class AgentDecision(BaseModel):
     # Policy and General Logging Fields
     action = Column(String)
     actor_type = Column(String)
+    decision_type = Column(String)
     decision_status = Column(String)
     policy_rules = Column(JSONB)
 

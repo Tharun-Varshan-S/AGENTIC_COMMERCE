@@ -20,6 +20,7 @@ from app.api.webhooks import router as webhooks_router
 from app.api.orders import router as orders_router
 from app.api.demo import router as demo_router
 from app.api.auth import router as auth_router
+from app.api.agent_catalog import router as agent_catalog_router
 
 app = FastAPI(
     title="AI-Native Merchant Commerce Platform",
@@ -33,7 +34,7 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,7 +45,7 @@ app.include_router(health_router, prefix="/api", tags=["Health"])
 app.include_router(core_router, prefix="/api", tags=["Core"])
 app.include_router(analytics_router, prefix="/api", tags=["Analytics"])
 app.include_router(cart_router, prefix="/api", tags=["Cart"])
-app.include_router(agent_router, prefix="/api", tags=["Agent"])
+app.include_router(agent_router, prefix="/api/agent", tags=["Agent"])
 app.include_router(tools_router, prefix="/api", tags=["Commerce Tools"])
 app.include_router(revenue_router, prefix="/api", tags=["Revenue"])
 app.include_router(policy_router, prefix="/api", tags=["Policy"])
@@ -54,3 +55,4 @@ app.include_router(webhooks_router, prefix="/api/webhooks", tags=["Webhooks"])
 app.include_router(orders_router, prefix="/api/orders", tags=["Orders"])
 app.include_router(demo_router, prefix="/api/demo", tags=["Demo"])
 app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
+app.include_router(agent_catalog_router, prefix="/api", tags=["Agent Catalog"])

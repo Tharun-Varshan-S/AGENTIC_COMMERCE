@@ -3,6 +3,9 @@ import sys
 import subprocess
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
+import logging
+
+logger = logging.getLogger(__name__)
 
 from app.db.session import get_db
 from app.api.auth import get_demo_merchant
@@ -29,4 +32,5 @@ def reset_demo_state():
     except subprocess.CalledProcessError as e:
         raise HTTPException(status_code=500, detail=f"Seed failed: {e.stderr}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+        logger.exception("Unexpected error in reset_demo_state")
+        raise HTTPException(status_code=500, detail="An internal server error occurred.")

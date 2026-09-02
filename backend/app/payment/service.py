@@ -186,16 +186,17 @@ def verify_payment(db: Session, payment_id: str, rp_payment_id: str, rp_order_id
     try:
         verify_payment_signature(rp_order_id, rp_payment_id, rp_signature)
     except Exception as e:
-        audit = AuditLog(
-            merchant_id=order.merchant_id,
-            customer_id=order.customer_id,
-            action="PAYMENT_VERIFICATION_FAILED",
-            event_type="payment",
-            actor_type="SYSTEM",
-            metadata_json={"error": str(e), "payment_id": str(payment.id)}
-        )
-        db.add(audit)
-        db.commit()
+        with Session(db.get_bind()) as audit_db:
+            audit = AuditLog(
+                merchant_id=order.merchant_id,
+                customer_id=order.customer_id,
+                action="PAYMENT_VERIFICATION_FAILED",
+                event_type="payment",
+                actor_type="SYSTEM",
+                metadata_json={"error": str(e), "payment_id": str(payment.id)}
+            )
+            audit_db.add(audit)
+            audit_db.commit()
         raise
 
     # If verification succeeds, update payment status to CAPTURED and order to PAID
@@ -284,25 +285,41 @@ def _finalize_order(db: Session, order: Order, payment: Payment):
     # 1. Check amount mismatch
     expected_amount = order.total
     if payment.amount != expected_amount:
-        audit = AuditLog(
-            merchant_id=order.merchant_id,
-            customer_id=order.customer_id,
-            action="PAYMENT_AMOUNT_MISMATCH",
-            event_type="payment",
-            actor_type="SYSTEM",
-            metadata_json={"expected": str(expected_amount), "actual": str(payment.amount), "payment_id": str(payment.id)}
-        )
-        db.add(audit)
+        with Session(db.get_bind()) as audit_db:
+            audit = AuditLog(
+                merchant_id=order.merchant_id,
+                customer_id=order.customer_id,
+                action="PAYMENT_AMOUNT_MISMATCH",
+                event_type="payment",
+                actor_type="SYSTEM",
+                metadata_json={"expected": str(expected_amount), "actual": str(payment.amount), "payment_id": str(payment.id)}
+            )
+            audit_db.add(audit)
+            audit_db.commit()
         raise AmountMismatchError("Payment amount does not match order total")
         
-    # 2. Decrement inventory
-    from app.models.product import Inventory
+    # 2. Decrement inventory atomically
+    from sqlalchemy import text
+    from app.models.agent import AgentDecision
     for item in order.items:
-        inv = db.query(Inventory).filter_by(offer_id=item.offer_id).with_for_update().first()
-        if not inv or inv.quantity < item.quantity:
-            # We fail finalization if oversold
+        result = db.execute(text("""
+            UPDATE inventories 
+            SET quantity = quantity - :qty 
+            WHERE offer_id = :offer_id AND quantity >= :qty
+        """), {"qty": item.quantity, "offer_id": item.offer_id})
+        if result.rowcount == 0:
+            with Session(db.get_bind()) as audit_db:
+                decision = AgentDecision(
+                    customer_id=order.customer_id,
+                    merchant_id=order.merchant_id,
+                    action="PAYMENT_FINALIZATION",
+                    actor_type="SYSTEM",
+                    decision_status="REJECTED",
+                    policy_rules=["insufficient_stock"]
+                )
+                audit_db.add(decision)
+                audit_db.commit()
             raise PaymentStateError(f"Insufficient inventory for offer {item.offer_id}")
-        inv.quantity -= item.quantity
         
     # 3. Mark paid and cart COMPLETED
     order.status = "PAID"

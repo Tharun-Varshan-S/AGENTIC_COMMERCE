@@ -16,5 +16,5 @@ class PolicyDecision(BaseModel):
 
 class PolicyEvaluationRequest(BaseModel):
     merchant_id: str
-    customer_id: str
+    customer_id: Optional[str] = None
     cart_id: str

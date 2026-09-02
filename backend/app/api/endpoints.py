@@ -13,6 +13,9 @@ from app.schemas.core import (
     CustomerResponse,
     MerchantRuleResponse
 )
+from app.api.auth import get_current_merchant_user, get_current_user
+from app.models.merchant import Merchant
+from app.models.user import User
 
 router = APIRouter()
 
@@ -48,13 +51,15 @@ def get_product(product_id: UUID, service: CoreService = Depends(get_service)):
     return product
 
 @router.get("/inventory", response_model=List[InventoryResponse])
-def get_inventory(service: CoreService = Depends(get_service)):
+def get_inventory(service: CoreService = Depends(get_service), current_merchant: Merchant = Depends(get_current_merchant_user)):
     return service.get_inventory()
 
 @router.get("/customers", response_model=List[CustomerResponse])
-def get_customers(service: CoreService = Depends(get_service)):
+def get_customers(service: CoreService = Depends(get_service), current_user: User = Depends(get_current_user)):
     return service.get_customers()
 
 @router.get("/merchant-rules", response_model=List[MerchantRuleResponse])
-def get_merchant_rules(merchant_id: UUID, service: CoreService = Depends(get_service)):
+def get_merchant_rules(merchant_id: UUID, service: CoreService = Depends(get_service), current_merchant: Merchant = Depends(get_current_merchant_user)):
+    if merchant_id != current_merchant.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
     return service.get_merchant_rules(merchant_id)

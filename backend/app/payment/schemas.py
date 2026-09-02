@@ -3,7 +3,7 @@ from typing import Optional
 
 class RazorpayOrderRequest(BaseModel):
     merchant_id: str
-    customer_id: str
+    customer_id: Optional[str] = None
     cart_id: str
     human_approval: bool = False
     source: str = "DIRECT"
@@ -11,7 +11,7 @@ class RazorpayOrderRequest(BaseModel):
 
 class DirectCheckoutRequest(BaseModel):
     merchant_id: str
-    customer_id: str
+    customer_id: Optional[str] = None
     product_id: str
     offer_id: str
     quantity: int = 1
@@ -38,11 +38,11 @@ class PaymentStatusResponse(BaseModel):
 
 class AgenticSetupRequest(BaseModel):
     merchant_id: str
-    customer_id: str
+    customer_id: Optional[str] = None
     per_transaction_limit: float
     daily_limit: float
 
 class ExecuteAgenticRequest(BaseModel):
     merchant_id: str
-    customer_id: str
+    customer_id: Optional[str] = None
     cart_id: str

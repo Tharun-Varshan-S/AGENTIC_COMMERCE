@@ -33,7 +33,7 @@ pip install -r requirements.txt
 cp .env.example .env # Add your Gemini and Razorpay keys
 alembic upgrade head
 python -m app.db.seed
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8080
 ```
 
 3. **Frontend Setup**

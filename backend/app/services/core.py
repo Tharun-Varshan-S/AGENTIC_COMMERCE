@@ -117,8 +117,8 @@ class CoreService:
             ) for inv in inventories
         ]
 
-    def get_customers(self) -> List[CustomerResponse]:
-        customers = self.repo.get_customers()
+    def get_customers(self, merchant_id: Optional[UUID] = None) -> List[CustomerResponse]:
+        customers = self.repo.get_customers(merchant_id=merchant_id)
         return [CustomerResponse.model_validate(c) for c in customers]
 
     def get_merchant_rules(self, merchant_id: UUID) -> List[MerchantRuleResponse]:

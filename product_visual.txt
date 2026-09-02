@@ -1,0 +1,24 @@
+Here's a concrete demo script you could actually run in front of judges — same 8-box flow, but now with real data at each step so it's tangible instead of conceptual.
+
+**Setup: pick one merchant, one product, one buyer agent**
+Say your test merchant is "Blume Skincare" (a fictional D2C brand seeded into Razorpay test mode with 5–6 SKUs, prices, stock counts). Your buyer agent is a simple chat interface you built that role-plays "Priya's personal shopping assistant."
+
+**Step-by-step demo**
+
+1. **Show the catalog feed first, not the chat.** Before typing anything, pull up a raw JSON/endpoint view: `GET /agent/catalog` returning products with price, stock, return policy, and a merchant-signed hash. Say out loud: "This is what an AI buyer sees — not a webpage, structured data it can trust." This single screen proves you built something protocol-shaped, not just a chatbot skin.
+
+2. **Type the real prompt into the buyer agent**, live: *"Get me a moisturizer under ₹500, ship by Friday."* Let the agent visibly query the catalog, filter, and respond with one product and a price — don't pre-script this, let it actually call your API so judges see the round trip.
+
+3. **Trigger the upsell moment.** Agent replies: *"Found Blume Hydra Gel, ₹449, ships tomorrow. Add sunscreen for ₹199 more — often bought together?"* This shows the cross-sell agent working off real co-purchase data, not a hardcoded line.
+
+4. **Show the guardrail check happening, not just the result.** This is the part judges will actually scrutinize — pause here. Show a small panel: "Mandate check: ₹648 ≤ ₹1000 session limit ✅. Merchant verified ✅. User confirmation required for first purchase with this merchant → sending OTP." Make the gate visible as its own UI state, not something that happens silently inside a black box.
+
+5. **User confirms, payment fires.** Show the actual Razorpay test-mode API call and response in a small dev console overlay — order ID, status `captured`. This is your proof it's real Razorpay, not a fake success message.
+
+6. **Now break it on purpose.** Run it a second time with a card that Razorpay's test mode returns as declined. Show the agent's reply: *"Payment didn't go through (card declined). I haven't retried automatically — want me to try a different method or stop here?"* This is your one required failure case — make it deliberate, not an accident you're hoping doesn't happen.
+
+7. **Pull up the audit trail as the closing screen.** A simple table: timestamp, agent ID, product shown, price shown, consent event, payment result, for both the successful and failed run. Say: "Every action here is reconstructable — this is what makes it explainable and safe to hand real money to."
+
+8. **End on the merchant dashboard.** One chart: revenue from agent-driven sales vs normal sales, upsell attach rate. This is your "grows revenue" payoff — the number the whole track is graded on.
+
+**What makes this "proper" rather than just a walkthrough:** you're never narrating what the system would do — every screen is something that actually executed during the demo, including the failure. Judges are told explicitly this track is scored on explainability, boundedness, gating, and one handled failure — so structure your 3–4 minutes as: catalog (30s) → happy path with visible guardrail (90s) → deliberate failure (45s) → audit trail + revenue number (45s). That order puts your riskiest, most impressive part (the guardrail + failure handling) in the middle where judges are paying closest attention, not rushed at the end.

@@ -24,6 +24,7 @@ class Merchant(BaseModel):
     rules = relationship("MerchantRule", back_populates="merchant", cascade="all, delete-orphan")
     agent_decisions = relationship("AgentDecision", back_populates="merchant", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="merchant", cascade="all, delete-orphan")
+    api_keys = relationship("MerchantAPIKey", back_populates="merchant", cascade="all, delete-orphan")
 
 class MerchantRule(BaseModel):
     __tablename__ = "merchant_rules"
@@ -36,3 +37,13 @@ class MerchantRule(BaseModel):
     require_consent = Column(Boolean, default=True)
 
     merchant = relationship("Merchant", back_populates="rules")
+
+class MerchantAPIKey(BaseModel):
+    __tablename__ = "merchant_api_keys"
+
+    merchant_id = Column(ForeignKey("merchants.id"), nullable=False, index=True)
+    key_hash = Column(String, nullable=False, unique=True, index=True)
+    name = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    merchant = relationship("Merchant", back_populates="api_keys")

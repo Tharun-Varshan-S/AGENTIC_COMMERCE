@@ -14,7 +14,7 @@ export default function MerchantLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading } = useAuth();
   const [isResetting, setIsResetting] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -49,6 +49,14 @@ export default function MerchantLayout({
   const merchantInitials = user?.merchant_name 
     ? user.merchant_name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
     : 'M';
+
+  if (isLoading || !user) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-900 w-full relative">

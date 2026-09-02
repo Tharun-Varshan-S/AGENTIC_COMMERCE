@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { API_BASE } from '@/lib/api';
 
 export interface User {
   id: string;
@@ -46,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUser = async (authToken: string) => {
     try {
-      const res = await fetch('http://localhost:8000/api/auth/me', {
+      const res = await fetch(`${API_BASE}/auth/me`, {
         headers: { 'Authorization': `Bearer ${authToken}` }
       });
       if (res.ok) {
@@ -74,18 +75,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Route protection logic
     if (isLoading) return;
     
-    if (pathname?.startsWith('/merchant')) {
-      if (!user) {
-        router.push('/login');
-      } else if (!user.role.startsWith('MERCHANT_')) {
-        // Customer trying to access merchant area
-        router.push('/buyer');
-      }
+    const isProtected = pathname?.startsWith('/merchant') || pathname?.startsWith('/buyer');
+    
+    if (isProtected && !user && !token) {
+      router.push('/login');
+      return;
     }
-  }, [pathname, user, isLoading, router]);
+    
+    if (pathname?.startsWith('/merchant') && user && !user.role.startsWith('MERCHANT_') && user.role !== 'PLATFORM_ADMIN') {
+      router.push('/buyer');
+    }
+  }, [pathname, user, token, isLoading, router]);
 
   const login = (newToken: string) => {
     localStorage.setItem('agentic_auth_token', newToken);

@@ -16,15 +16,7 @@ def create_order(amount_paise: int, currency: str = "INR", receipt: str = None, 
     amount_paise must be integer.
     """
     if not client:
-        # Fallback for testing without actual credentials
-        import uuid
-        return {
-            "id": f"order_test_{uuid.uuid4().hex[:10]}",
-            "amount": amount_paise,
-            "currency": currency,
-            "receipt": receipt,
-            "notes": notes or {}
-        }
+        raise RuntimeError("Razorpay API keys are not configured. Cannot create orders.")
 
     data = {
         "amount": amount_paise,
@@ -40,10 +32,7 @@ def verify_payment_signature(razorpay_order_id: str, razorpay_payment_id: str, r
     Raises PaymentVerificationError if invalid.
     """
     if not client:
-        # Accept dummy signatures if in completely mock mode without keys
-        if razorpay_signature.startswith("mock_"):
-            return True
-        raise PaymentVerificationError("No Razorpay client configured for verification.")
+        raise PaymentVerificationError("No Razorpay client configured for verification. Verification rejected securely.")
 
     params_dict = {
         'razorpay_order_id': razorpay_order_id,
@@ -61,9 +50,7 @@ def verify_webhook_signature(body: bytes, signature: str):
     Raises WebhookVerificationError if invalid.
     """
     if not client:
-        if signature == "mock_signature":
-            return True
-        raise WebhookVerificationError("No Razorpay client configured for webhook verification.")
+        raise WebhookVerificationError("No Razorpay client configured for webhook verification. Verification rejected securely.")
         
     try:
         client.utility.verify_webhook_signature(body.decode('utf-8'), signature, RAZORPAY_WEBHOOK_SECRET)

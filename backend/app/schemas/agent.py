@@ -23,3 +23,10 @@ class AgentDecisionResponse(ORMBase):
     
     primary_product: Optional[ProductResponse] = None
     recommended_product: Optional[ProductResponse] = None
+
+class UpsellResponseRequest(BaseModel):
+    merchant_id: UUID
+    customer_id: Optional[UUID] = None
+    cart_id: UUID
+    offer_id: UUID
+    action: str # "accept" or "decline"

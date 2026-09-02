@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
 import { ShieldCheck, Mail, Lock, ArrowRight, Loader2, Info } from 'lucide-react';
+import { API_BASE } from '@/lib/api';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -13,15 +14,7 @@ export default function LoginPage() {
   const { login, user } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    if (user) {
-      if (user.role.startsWith('MERCHANT_')) {
-        router.push('/merchant/dashboard');
-      } else {
-        router.push('/buyer');
-      }
-    }
-  }, [user, router]);
+  // Routing is now driven by backend via redirect_url on successful login
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +22,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch('http://localhost:8000/api/auth/login', {
+      const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -42,6 +35,9 @@ export default function LoginPage() {
       }
       
       login(data.access_token);
+      if (data.redirect_url) {
+        router.push(data.redirect_url);
+      }
       
     } catch (err: any) {
       setError(err.message);

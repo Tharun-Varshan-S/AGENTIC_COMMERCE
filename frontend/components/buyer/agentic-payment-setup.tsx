@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { setupAgenticAuthorization, getAgenticAuthorizationStatus, revokeAgenticAuthorization } from "@/lib/api";
 
-export function AgenticPaymentSetup({ customerId, onStatusChange }: { customerId: string, onStatusChange?: (status: string) => void }) {
+export function AgenticPaymentSetup({ merchantId, onStatusChange }: { merchantId: string, onStatusChange?: (status: string) => void }) {
   const [status, setStatus] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isConfiguring, setIsConfiguring] = useState(false);
@@ -10,15 +10,15 @@ export function AgenticPaymentSetup({ customerId, onStatusChange }: { customerId
   const [dailyLimit, setDailyLimit] = useState(10000);
   
   useEffect(() => {
-    if (customerId) {
+    if (merchantId) {
       fetchStatus();
     }
-  }, [customerId]);
+  }, [merchantId]);
   
   const fetchStatus = async () => {
     setIsLoading(true);
     try {
-      const res = await getAgenticAuthorizationStatus(customerId);
+      const res = await getAgenticAuthorizationStatus(merchantId);
       if (res && res.status !== "none") {
         setStatus(res);
         onStatusChange?.("ACTIVE");
@@ -36,7 +36,7 @@ export function AgenticPaymentSetup({ customerId, onStatusChange }: { customerId
   const handleSetup = async () => {
     setIsLoading(true);
     try {
-      const res = await setupAgenticAuthorization(customerId, perTxLimit, dailyLimit);
+      const res = await setupAgenticAuthorization(merchantId, perTxLimit, dailyLimit);
       setStatus(res);
       setIsConfiguring(false);
       onStatusChange?.("ACTIVE");
@@ -51,7 +51,7 @@ export function AgenticPaymentSetup({ customerId, onStatusChange }: { customerId
     if (!confirm("Are you sure you want to revoke Agentic Payment capabilities?")) return;
     setIsLoading(true);
     try {
-      await revokeAgenticAuthorization(customerId);
+      await revokeAgenticAuthorization(merchantId);
       setStatus(null);
       onStatusChange?.("NONE");
     } catch (e) {
@@ -61,7 +61,7 @@ export function AgenticPaymentSetup({ customerId, onStatusChange }: { customerId
     }
   };
   
-  if (!customerId) return null;
+  if (!merchantId) return null;
   
   return (
     <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-6 border border-indigo-100 shadow-sm">
