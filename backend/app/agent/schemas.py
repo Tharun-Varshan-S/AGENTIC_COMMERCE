@@ -34,6 +34,7 @@ class ChatRequest(BaseModel):
     merchant_id: str = Field(..., description="The merchant ID")
     customer_id: Optional[str] = Field(None, description="The customer ID")
     message: str = Field(..., description="The user's text message")
+    approved: bool = Field(False, description="Whether the user explicitly approved this action")
 
 class ToolCallLog(BaseModel):
     tool: str = Field(..., description="The name of the tool called")

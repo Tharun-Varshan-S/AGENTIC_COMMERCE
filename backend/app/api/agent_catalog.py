@@ -14,7 +14,6 @@ from app.models.order import Cart, CartItem
 from app.models.agent import AgentDecision
 from app.policy.service import PolicyService
 from app.policy.schemas import PolicyEvaluationRequest
-from app.payment.agentic_service import execute_agentic_payment
 from app.payment.exceptions import PaymentStateError
 from app.api.rate_limit import check_rate_limit
 
@@ -171,20 +170,6 @@ def confirm_checkout_intent(
         raise HTTPException(status_code=404, detail="Checkout intent token not found")
         
     try:
-        res = execute_agentic_payment(
-            db=db,
-            merchant_id=str(merchant.id),
-            customer_id=str(cart.customer_id),
-            cart_id=str(cart.id)
-        )
-        return ConfirmCheckoutIntentResponse(
-            status=res["status"],
-            payment_id=res["payment_id"],
-            order_number=res["order_number"],
-            amount=res["amount"],
-            message=res["message"]
-        )
-    except PaymentStateError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=501, detail="Pending correct implementation")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")

@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(override=True)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +21,7 @@ from app.api.orders import router as orders_router
 from app.api.demo import router as demo_router
 from app.api.auth import router as auth_router
 from app.api.agent_catalog import router as agent_catalog_router
+from app.api.customer import router as customer_router
 
 app = FastAPI(
     title="AI-Native Merchant Commerce Platform",
@@ -56,3 +57,4 @@ app.include_router(orders_router, prefix="/api/orders", tags=["Orders"])
 app.include_router(demo_router, prefix="/api/demo", tags=["Demo"])
 app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 app.include_router(agent_catalog_router, prefix="/api", tags=["Agent Catalog"])
+app.include_router(customer_router, prefix="/api/customer", tags=["Customer Settings"])

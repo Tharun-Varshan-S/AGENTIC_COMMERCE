@@ -56,6 +56,10 @@ def _adapt_tool(commerce_tool: CommerceTool) -> StructuredTool:
         kwargs_hash = hashlib.sha256(json.dumps(kwargs, sort_keys=True, default=str).encode()).hexdigest()
         idem_key = f"{thread_id}_{commerce_tool.name}_{kwargs_hash}"
         
+        # Extract human approval state from config
+        human_approval = config.get("configurable", {}).get("human_approval", False)
+        kwargs["human_approval"] = human_approval
+        
         # Check if already executed
         existing = db.query(IdempotencyKey).filter_by(key=idem_key).first()
         if existing:

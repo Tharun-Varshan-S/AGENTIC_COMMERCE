@@ -8,15 +8,14 @@ def get_llm():
     with a fallback to Gemini API.
     """
     primary_llm = ChatAnthropic(
-        model=os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20240620"),
-        api_key=os.getenv("ANTHROPIC_API_KEY") or "dummy-key",
-        default_headers={"x-api-key": os.getenv("ANTHROPIC_API_KEY")} if os.getenv("ANTHROPIC_API_KEY") else None,
-        base_url=os.getenv("ANTHROPIC_BASE_URL", "https://api.llmrelay.com/v1"),
+        model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4.6"),
+        api_key=os.getenv("ANTHROPIC_API_KEY", "").strip('"').strip("'") or "dummy-key",
+        anthropic_api_url=os.getenv("ANTHROPIC_BASE_URL", "https://api.llmsrelay.com").strip('"').strip("'"),
         max_tokens=2048,
     )
 
     backup_llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
+        model="gemini-3.6-flash",
         google_api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "dummy-key"
     )
 

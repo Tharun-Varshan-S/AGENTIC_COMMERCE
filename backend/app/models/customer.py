@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, ForeignKey
+from sqlalchemy import Column, String, ForeignKey, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from app.db.base_class import BaseModel
@@ -11,6 +11,8 @@ class Customer(BaseModel):
     name = Column(String, nullable=False)
     email = Column(String)
     budget_preference = Column(String)
+    transaction_limit = Column(Numeric, default=10000.0)
+    daily_limit = Column(Numeric, default=50000.0)
 
     merchant = relationship("Merchant", back_populates="customers")
     events = relationship("CustomerEvent", back_populates="customer", cascade="all, delete-orphan")

@@ -22,3 +22,6 @@ Say your test merchant is "Blume Skincare" (a fictional D2C brand seeded into Ra
 8. **End on the merchant dashboard.** One chart: revenue from agent-driven sales vs normal sales, upsell attach rate. This is your "grows revenue" payoff — the number the whole track is graded on.
 
 **What makes this "proper" rather than just a walkthrough:** you're never narrating what the system would do — every screen is something that actually executed during the demo, including the failure. Judges are told explicitly this track is scored on explainability, boundedness, gating, and one handled failure — so structure your 3–4 minutes as: catalog (30s) → happy path with visible guardrail (90s) → deliberate failure (45s) → audit trail + revenue number (45s). That order puts your riskiest, most impressive part (the guardrail + failure handling) in the middle where judges are paying closest attention, not rushed at the end.
+
+
+EG:Find me a gaming mouse under ₹3000

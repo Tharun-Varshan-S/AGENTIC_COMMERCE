@@ -13,7 +13,8 @@ def get_agent_response_stream(request: ChatRequest, db_session: Session):
         "configurable": {
             "thread_id": request.session_id,
             "db": db_session,
-            "customer_id": request.customer_id
+            "customer_id": request.customer_id,
+            "human_approval": getattr(request, "approved", False)
         }
     }
     

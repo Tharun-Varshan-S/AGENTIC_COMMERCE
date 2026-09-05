@@ -60,8 +60,11 @@ class PolicyService:
         from app.models.user import UserSpendingLimit
         spending_limit = self.db.query(UserSpendingLimit).filter(UserSpendingLimit.user_id == customer.user_id).first() if hasattr(customer, 'user_id') else None
         
-        from app.payment.agentic_service import get_active_authorization
-        agentic_auth = get_active_authorization(self.db, request.customer_id)
+        from app.models.payment_authorization import AgenticPaymentAuthorization
+        agentic_auth = self.db.query(AgenticPaymentAuthorization).filter(
+            AgenticPaymentAuthorization.customer_id == request.customer_id,
+            AgenticPaymentAuthorization.status == "ACTIVE"
+        ).first()
         
         context = {
             "merchant": merchant,

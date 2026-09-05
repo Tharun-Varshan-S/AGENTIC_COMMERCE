@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Numeric, ForeignKey, Integer
+from sqlalchemy import Column, String, Numeric, ForeignKey, Integer, Boolean
 from sqlalchemy.orm import relationship
 from app.db.base_class import BaseModel
 
@@ -72,6 +72,7 @@ class Payment(BaseModel):
     amount = Column(Numeric(10, 2), nullable=False)
     currency = Column(String, default="INR", nullable=False)
     status = Column(String, default="CREATED", nullable=False) # CREATED, AUTHORIZED, CAPTURED, FAILED, REFUNDED
+    webhook_verified = Column(Boolean, default=False, nullable=False)
     agentic_authorization_id = Column(ForeignKey("agentic_payment_authorizations.id"), nullable=True, index=True)
 
     order = relationship("Order", back_populates="payment")

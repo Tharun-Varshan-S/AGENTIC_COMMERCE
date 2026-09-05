@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 
 from app.tools.base import CommerceTool, ToolError
 from app.payment.service import create_payment_order
-from app.payment.agentic_service import get_active_authorization, execute_agentic_payment
 from app.models.order import Payment
 
 class CreateRazorpayOrderInput(BaseModel):
@@ -20,7 +19,42 @@ class CreateRazorpayOrderTool(CommerceTool):
 
     def execute(self, db_session: Session, **kwargs) -> Dict[str, Any]:
         try:
-            res = create_payment_order(db_session, kwargs["merchant_id"], kwargs["customer_id"], kwargs["cart_id"], human_approval=False)
+            human_approval = kwargs.get("human_approval", True)
+            res = create_payment_order(db_session, kwargs["merchant_id"], kwargs["customer_id"], kwargs["cart_id"], human_approval=human_approval)
+            return res
+        except Exception as e:
+            raise ToolError("PAYMENT_ORDER_FAILED", str(e))
+
+class CreateDirectRazorpayOrderInput(BaseModel):
+    merchant_id: str = Field(..., description="The ID of the merchant")
+    customer_id: str = Field(..., description="The ID of the customer")
+    product_id: str = Field(..., description="The ID of the product")
+    offer_id: str = Field(..., description="The ID of the offer")
+    quantity: int = Field(1, description="The quantity to purchase")
+
+class CreateDirectRazorpayOrderTool(CommerceTool):
+    name = "create_direct_razorpay_order"
+    description = "Creates a Razorpay order directly for a single product ('Buy Now' intent). Must only be called after validate_policy returns ALLOWED."
+    input_schema: Type[BaseModel] = CreateDirectRazorpayOrderInput
+    read_only = False
+
+    def execute(self, db_session: Session, **kwargs) -> Dict[str, Any]:
+        try:
+            from app.payment.schemas import DirectCheckoutRequest
+            from app.payment.service import create_direct_payment_order
+            human_approval = kwargs.get("human_approval", True)
+            
+            req = DirectCheckoutRequest(
+                merchant_id=kwargs["merchant_id"],
+                customer_id=kwargs["customer_id"],
+                product_id=kwargs["product_id"],
+                offer_id=kwargs["offer_id"],
+                quantity=kwargs.get("quantity", 1),
+                source="DIRECT",
+                agent_trace={"tool": self.name},
+                human_approval=human_approval
+            )
+            res = create_direct_payment_order(db_session, req)
             return res
         except Exception as e:
             raise ToolError("PAYMENT_ORDER_FAILED", str(e))
@@ -42,42 +76,4 @@ class GetPaymentStatusTool(CommerceTool):
             raise ToolError("PAYMENT_NOT_FOUND", "Payment not found")
         return {"payment_id": payment.id, "status": payment.status}
 
-class CheckPaymentAuthorizationInput(BaseModel):
-    customer_id: str = Field(..., description="The ID of the customer")
 
-class CheckPaymentAuthorizationTool(CommerceTool):
-    name = "check_payment_authorization"
-    description = "Checks if the customer has an active Agentic Payment capability configured, and returns the limits."
-    input_schema: Type[BaseModel] = CheckPaymentAuthorizationInput
-    read_only = True
-
-    def execute(self, db_session: Session, **kwargs) -> Dict[str, Any]:
-        auth = get_active_authorization(db_session, kwargs["customer_id"])
-        if not auth:
-            return {"status": "none", "message": "No active agentic payment authorization."}
-        return {
-            "status": auth.status,
-            "rail": auth.rail,
-            "per_transaction_limit": float(auth.per_transaction_limit),
-            "daily_limit": float(auth.daily_limit),
-            "spent_today": float(auth.spent_today),
-            "expires_at": str(auth.expires_at) if auth.expires_at else None
-        }
-
-class ExecuteAgenticPaymentInput(BaseModel):
-    merchant_id: str = Field(..., description="The ID of the merchant")
-    customer_id: str = Field(..., description="The ID of the customer")
-    cart_id: str = Field(..., description="The ID of the active cart")
-
-class ExecuteAgenticPaymentTool(CommerceTool):
-    name = "execute_agentic_payment"
-    description = "Executes an authorized agentic payment directly on the backend. Requires prior human approval or consent."
-    input_schema: Type[BaseModel] = ExecuteAgenticPaymentInput
-    read_only = False
-
-    def execute(self, db_session: Session, **kwargs) -> Dict[str, Any]:
-        try:
-            res = execute_agentic_payment(db_session, kwargs["merchant_id"], kwargs["customer_id"], kwargs["cart_id"])
-            return res
-        except Exception as e:
-            raise ToolError("AGENTIC_PAYMENT_FAILED", str(e))

@@ -1,7 +1,8 @@
 "use client";
 
-import { ShoppingCart, Bot } from "lucide-react";
+import { ShoppingCart, Bot, History, UserCircle } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
+import Link from "next/link";
 
 type BuyerHeaderProps = {
   cartItemCount: number;
@@ -28,6 +29,22 @@ export function BuyerHeader({
           <span>Shopping as:</span>
           <span className="font-medium text-gray-900">{user?.full_name || user?.email || "Guest"}</span>
         </div>
+
+        <Link 
+          href="/buyer/history"
+          className="p-2 text-gray-600 hover:text-indigo-600 transition-colors"
+          title="Payment History"
+        >
+          <History className="w-6 h-6" />
+        </Link>
+
+        <Link
+          href="/buyer/profile"
+          className="p-2 text-gray-600 hover:text-indigo-600 transition-colors"
+          title="Profile & Spending Limits"
+        >
+          <UserCircle className="w-6 h-6" />
+        </Link>
 
         <button
           onClick={onCartClick}

@@ -7,6 +7,7 @@ declare global {
 }
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { 
   fetchProducts, 
   fetchActiveCart, 
@@ -24,10 +25,10 @@ import {
   createPaymentOrder,
   createDirectPaymentOrder,
   verifyPayment,
-  getAgenticAuthorizationStatus,
-  executeAgenticPayment,
-  executeDirectAgenticPayment,
-  respondToUpsell
+  respondToUpsell,
+  fetchCustomerSettings,
+  updateCustomerSettings,
+  executePurchase
 } from "@/lib/api";
 import { useAuth } from "@/components/auth-provider";
 import { BuyerHeader } from "@/components/buyer/buyer-header";
@@ -36,7 +37,6 @@ import { ProductResults } from "@/components/buyer/product-results";
 import { ProductDetails } from "@/components/buyer/product-details";
 import { CartDrawer } from "@/components/buyer/cart-drawer";
 import { RecommendationCard } from "@/components/buyer/recommendation-card";
-import { AgenticPaymentSetup } from "@/components/buyer/agentic-payment-setup";
 
 import { AgentOrchestration, OrchestrationEvent } from "@/components/buyer/agent-orchestration";
 
@@ -67,10 +67,25 @@ export default function BuyerPage() {
   const [isProcessingConsent, setIsProcessingConsent] = useState(false);
   
   // Agentic Payment processing state
-  const [isProcessingBuyNow, setIsProcessingBuyNow] = useState(false);
-  const [agenticPurchaseTimeline, setAgenticPurchaseTimeline] = useState<string[]>([]);
+  const [approvalState, setApprovalState] = useState<'IDLE' | 'WAITING_FOR_HUMAN_APPROVAL' | 'AGENT_PAYMENT_AUTHORIZED' | 'AGENT_EXECUTING_PURCHASE' | 'RAZORPAY_PAYMENT_PROCESSING' | 'VERIFYING' | 'SUCCESS' | 'PURCHASE_FAILED'>('IDLE');
+  const [pendingPurchase, setPendingPurchase] = useState<any>(null);
+  const [purchaseSteps, setPurchaseSteps] = useState<Array<{
+    step: string;
+    status: 'running' | 'passed' | 'blocked';
+    detail: string;
+    metadata?: Record<string, any>;
+  }>>([]);
+  
+  // Settings
+  const [customerSettings, setCustomerSettings] = useState<{
+    transaction_limit: number;
+    daily_limit: number;
+    spending_limit_set: boolean;
+  } | null>(null);
   
   const { user, isLoading } = useAuth();
+  const router = useRouter();
+
 
   // Initialize
   useEffect(() => {
@@ -106,6 +121,9 @@ export default function BuyerPage() {
         } else {
             setPolicyDecision(null);
         }
+        
+        const settings = await fetchCustomerSettings(merchantId);
+        setCustomerSettings(settings);
       } catch (err) {
         console.error(err);
       }
@@ -137,7 +155,7 @@ export default function BuyerPage() {
     }
   };
 
-  const handleSendMessage = async (text: string) => {
+  const handleSendMessage = async (text: string, approved?: boolean) => {
     const newMessage: Message = { id: Date.now().toString(), sender: "USER", text };
     setMessages(prev => [...prev, newMessage]);
     setIsChatLoading(true);
@@ -153,7 +171,8 @@ export default function BuyerPage() {
         text,
         (event) => {
           setOrchestrationEvents(prev => [...prev, event]);
-        }
+        },
+        approved
       );
       
       // Update UI state from structured agent response
@@ -175,20 +194,18 @@ export default function BuyerPage() {
         setPolicyDecision(response.policy);
       }
       if (response.checkout_session) {
-        if (response.checkout_session.agentic_paid) {
-            setMessages(prev => [...prev, {
-              id: Date.now().toString(),
-              sender: "AI ASSISTANT",
-              text: "✅ Agentic Payment successful! Your order has been placed securely without a manual checkout.",
-              toolCalls: response.tool_calls
-            }]);
-            await reloadCart();
-            setIsCartOpen(false);
-            return; // skip the default agent text since we injected our own
+        if (response.checkout_session.razorpay_order_id) {
+            setApprovalState('RAZORPAY_PAYMENT_PROCESSING');
+            handleRazorpayCheckout(response.checkout_session);
         } else if (response.checkout_session.checkout_ready) {
+            setApprovalState('IDLE');
+            setPendingPurchase(null);
             await reloadCart();
             setIsCartOpen(true);
         }
+      } else {
+          setApprovalState('IDLE');
+          setPendingPurchase(null);
       }
       
       if (response.upsell_suggestions && response.upsell_suggestions.length > 0) {
@@ -226,6 +243,8 @@ export default function BuyerPage() {
         sender: "AI ASSISTANT",
         text: errorMessage
       }]);
+      setApprovalState('IDLE');
+      setPendingPurchase(null);
     } finally {
       setIsChatLoading(false);
       setIsProductsLoading(false);
@@ -250,68 +269,15 @@ export default function BuyerPage() {
       alert("Merchant not ready.");
       return;
     }
-
-    // Check if agentic payment is active
-    let hasAgenticAuth = false;
-    try {
-        const authStatus = await getAgenticAuthorizationStatus(merchantId);
-        if (authStatus && authStatus.status === "ACTIVE") {
-            hasAgenticAuth = true;
-        }
-    } catch(e) {}
-    
-    if (hasAgenticAuth) {
-        setIsProcessingBuyNow(true);
-        setAgenticPurchaseTimeline([
-          "✓ Buyer authenticated",
-          "✓ Agentic payment authorization verified",
-          "⏳ Processing payment..."
-        ]);
-        try {
-            const res = await executeDirectAgenticPayment(merchantId, product.offer_id, 1);
-            setAgenticPurchaseTimeline([
-              "✓ Buyer authenticated",
-              "✓ Agentic payment authorization verified",
-              "✓ Spending limit verified",
-              "✓ Product availability verified",
-              "✓ Payment initiated",
-              "✓ Payment successful",
-              `Order ID: ${res.order_number}`,
-              `Payment ID: ${res.payment_id}`
-            ]);
-            setMessages(prev => [...prev, {
-                id: Date.now().toString(),
-                sender: "AI ASSISTANT",
-                text: `✅ Purchase completed! Agentic Payment successful for ${product.name}.`
-            }]);
-            
-            // Reload user limits
-            const updateEvent = new CustomEvent('agentic-auth-update');
-            window.dispatchEvent(updateEvent);
-
-            setTimeout(() => {
-                setIsProcessingBuyNow(false);
-                setAgenticPurchaseTimeline([]);
-            }, 4000);
-            await reloadCart();
-        } catch (err: any) {
-            setAgenticPurchaseTimeline([]);
-            setIsProcessingBuyNow(false);
-            setError(`Agentic payment blocked: ${err.message}`);
-        }
-        return;
+    // Gate on spending limit — redirect to profile page if not set
+    if (!customerSettings || !customerSettings.spending_limit_set) {
+      router.push('/buyer/profile');
+      return;
     }
-
-    try {
-      const orderRes = await createDirectPaymentOrder(merchantId, product.id, product.offer_id, 1);
-      handleRazorpayCheckout(orderRes);
-    } catch (err: any) {
-      if (err.message && err.message.includes("Consent required")) {
-         setError("This high-value order requires approval. Please add to cart to proceed with consent flow.");
-      } else {
-         setError(err.message);
-      }
-    }
+    // Prevent re-entry if already in-flight
+    if (approvalState !== 'IDLE') return;
+    setPendingPurchase({ type: 'buy_now', product });
+    setApprovalState('WAITING_FOR_HUMAN_APPROVAL');
   };
 
   const handleUpdateCartItem = async (itemId: string, quantity: number) => {
@@ -352,116 +318,116 @@ export default function BuyerPage() {
 
   const handleInitiatePurchase = async () => {
     if (!cart) return;
-    
-    // Check if agentic payment is active
-    let hasAgenticAuth = false;
-    try {
-        const authStatus = await getAgenticAuthorizationStatus(merchantId);
-        if (authStatus && authStatus.status === "ACTIVE") {
-            hasAgenticAuth = true;
-        }
-    } catch(e) {}
-    
-    const executeCheckout = async () => {
-        if (hasAgenticAuth) {
-             try {
-                 await executeAgenticPayment(merchantId, cart.id);
-                 setMessages(prev => [...prev, {
-                     id: Date.now().toString(),
-                     sender: "AI ASSISTANT",
-                     text: "✅ Agentic Payment executed successfully after consent!"
-                 }]);
-                 await reloadCart();
-                 setIsCartOpen(false);
-             } catch(err: any) {
-                 setError(err.message);
-             }
-        } else {
-             try {
-                 const orderRes = await createPaymentOrder(merchantId, cart.id);
-                 handleRazorpayCheckout(orderRes);
-             } catch(err: any) {
-                 setError(err.message);
-             }
-        }
-    };
-    
-    if (policyDecision?.decision === 'ALLOWED') {
-        await executeCheckout();
-        return;
+    // Gate on spending limit
+    if (!customerSettings || !customerSettings.spending_limit_set) {
+      router.push('/buyer/profile');
+      return;
     }
-    
-    if (policyDecision?.decision === 'REQUIRES_CONSENT') {
-       try {
-           setIsProcessingConsent(true);
-           const res = await requestConsent(merchantId, cart.id);
-           if (res.status === 'APPROVED') {
-             setIsConsentModalOpen(false);
-             setConsentRequest(null);
-             await reloadCart();
-             await executeCheckout();
-           } else {
-             setConsentRequest(res);
-             setIsConsentModalOpen(true);
-           }
-       } catch (err: any) {
-           setError("Failed to request consent");
-       } finally {
-           setIsProcessingConsent(false);
-       }
-    }
+    if (approvalState !== 'IDLE') return;
+    setPendingPurchase({ type: 'cart' });
+    setApprovalState('WAITING_FOR_HUMAN_APPROVAL');
   };
 
-  const handleApproveConsent = async () => {
-    if (!consentRequest) return;
-    setIsProcessingConsent(true);
+  const handleApprovePurchase = async () => {
+    setApprovalState('AGENT_EXECUTING_PURCHASE');
+    setPurchaseSteps([]);
+    
     try {
-        await approveConsent(consentRequest.id);
-        setIsConsentModalOpen(false);
-        setConsentRequest(null);
-        await reloadCart();
-        
-        // Use the checkout logic
-        let hasAgenticAuth = false;
-        try {
-            const authStatus = await getAgenticAuthorizationStatus(merchantId);
-            if (authStatus && authStatus.status === "ACTIVE") {
-                hasAgenticAuth = true;
+      let res;
+      if (pendingPurchase.type === 'buy_now') {
+        res = await executePurchase(merchantId!, "buy_now", {
+          product_id: pendingPurchase.product.id,
+          offer_id: pendingPurchase.product.offer_id,
+          quantity: 1
+        }, (step) => {
+          setPurchaseSteps(prev => {
+            const existing = prev.findIndex(s => s.step === step.step);
+            if (existing >= 0) {
+              const updated = [...prev];
+              updated[existing] = step;
+              return updated;
             }
-        } catch(e) {}
-        
-        if (hasAgenticAuth) {
-             try {
-                 await executeAgenticPayment(merchantId, cart.id);
-                 setMessages(prev => [...prev, {
-                     id: Date.now().toString(),
-                     sender: "AI ASSISTANT",
-                     text: "✅ Agentic Payment executed successfully after manual approval!"
-                 }]);
-                 await reloadCart();
-                 setIsCartOpen(false);
-             } catch(err: any) {
-                 setError(err.message);
-             }
-        } else {
-             const orderRes = await createPaymentOrder(merchantId, cart.id);
-             handleRazorpayCheckout(orderRes);
-        }
+            return [...prev, step];
+          });
+        });
+      } else {
+        res = await executePurchase(merchantId!, "cart", {
+          cart_id: cart?.id
+        }, (step) => {
+          setPurchaseSteps(prev => {
+            const existing = prev.findIndex(s => s.step === step.step);
+            if (existing >= 0) {
+              const updated = [...prev];
+              updated[existing] = step;
+              return updated;
+            }
+            return [...prev, step];
+          });
+        });
+      }
+      
+      // HEADLESS PATH: if the agent already captured the payment S2S, skip Checkout.js entirely
+      if (res.payment_mode === 'headless_s2s') {
+        setApprovalState('SUCCESS');
+        setPendingPurchase((prev: any) => ({
+          ...prev,
+          finalPaymentId: res.razorpay_payment_id,
+          finalAmount: res.amount_rupees,
+          finalTimestamp: res.captured_at || new Date().toISOString(),
+          receiptUrl: res.receipt_url
+        }));
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          sender: "AI ASSISTANT",
+          text: `✅ Payment captured headlessly! Payment ID: ${res.razorpay_payment_id} — no card entry required.`
+        }]);
+        await reloadCart();
+        setTimeout(() => {
+          setApprovalState('IDLE');
+          setPendingPurchase(null);
+          setPurchaseSteps([]);
+          setIsCartOpen(false);
+        }, 6000);
+        return;
+      }
+
+      // FALLBACK PATH: open Razorpay Checkout.js modal
+      setApprovalState('RAZORPAY_PAYMENT_PROCESSING');
+      handleRazorpayCheckout(res);
+      
     } catch (err: any) {
-        setError(err.message || "Failed to approve consent");
-    } finally {
-        setIsProcessingConsent(false);
+      console.error("Purchase execution failed:", err);
+      const errorClass = (err as any).error_class;
+      let userMessage = err.message || "An error occurred while executing the purchase.";
+      if (errorClass === 'SpendingLimitNotConfigured') {
+        userMessage = "No spending limit set. Please configure a limit in your Profile before making purchases.";
+      } else if (errorClass === 'TransactionLimitExceeded') {
+        userMessage = `Blocked: ${err.message}`;
+      } else if (errorClass === 'DailyLimitExceeded') {
+        userMessage = `Blocked: ${err.message}`;
+      } else if (errorClass === 'RazorpayProviderError') {
+        userMessage = `Payment provider unavailable: ${err.message}`;
+      } else if (errorClass === 'SavedInstrumentInvalid') {
+        userMessage = `Saved payment method invalid. Go to Profile → Authorize Agent to Pay.`;
+      } else if (errorClass === 'ChargeDeclined') {
+        userMessage = `Charge declined by card issuer. No retry attempted. ${err.message}`;
+      }
+      setError(userMessage);
+      setApprovalState('PURCHASE_FAILED');
     }
   };
   
-  const handleDeclineConsent = () => {
-    setIsConsentModalOpen(false);
-    setConsentRequest(null);
+  const handleCancelPurchase = () => {
+    setApprovalState('IDLE');
+    setPendingPurchase(null);
+    setError(null);
   };
 
   const handleRazorpayCheckout = (paymentOrder: any) => {
     if (!window.Razorpay) {
       setError("Razorpay SDK failed to load. Are you offline?");
+      setApprovalState('IDLE');
+      setPendingPurchase(null);
       return;
     }
 
@@ -474,6 +440,7 @@ export default function BuyerPage() {
       order_id: paymentOrder.razorpay_order_id,
       handler: async function (response: any) {
         try {
+          setApprovalState('VERIFYING');
           const verifyRes = await verifyPayment(
             paymentOrder.payment_id,
             response.razorpay_payment_id,
@@ -482,19 +449,40 @@ export default function BuyerPage() {
           );
           
           if (verifyRes.status === "success") {
+            setApprovalState('SUCCESS');
+            setPendingPurchase((prev: any) => ({
+              ...prev,
+              finalPaymentId: response.razorpay_payment_id,
+              finalAmount: verifyRes.amount_rupees,
+              finalTimestamp: verifyRes.captured_at || new Date().toISOString(),
+              receiptUrl: verifyRes.receipt_url
+            }));
+            
             setMessages(prev => [...prev, {
               id: Date.now().toString(),
               sender: "AI ASSISTANT",
-              text: "✅ Payment successful! Your order has been placed."
+              text: `✅ Payment successful! Payment ID: ${response.razorpay_payment_id}`
             }]);
             
-            // Clear cart logic here if we wanted to
-            // For now just reload
             await reloadCart();
-            setIsCartOpen(false);
+
+            setTimeout(() => {
+                setApprovalState('IDLE');
+                setPendingPurchase(null);
+                setPurchaseSteps([]);
+                setIsCartOpen(false);
+            }, 5000);
           }
         } catch (err: any) {
           setError(err.message || "Payment verification failed.");
+          setApprovalState('IDLE');
+          setPendingPurchase(null);
+        }
+      },
+      modal: {
+        ondismiss: function() {
+           setApprovalState('IDLE');
+           setPendingPurchase(null);
         }
       },
       prefill: {
@@ -510,6 +498,8 @@ export default function BuyerPage() {
     const rzp1 = new window.Razorpay(options);
     rzp1.on('payment.failed', function (response: any){
       setError(`Payment Failed: ${response.error.description}`);
+      setApprovalState('IDLE');
+      setPendingPurchase(null);
     });
     rzp1.open();
   };
@@ -528,6 +518,7 @@ export default function BuyerPage() {
         cartItemCount={cart?.items?.length || 0}
         onCartClick={() => setIsCartOpen(true)}
       />
+
 
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
         {/* AI Chat Area */}
@@ -548,10 +539,6 @@ export default function BuyerPage() {
           )}
 
           <div className="max-w-5xl mx-auto space-y-8">
-            {merchantId && (
-               <AgenticPaymentSetup merchantId={merchantId} />
-            )}
-            
             <ProductResults 
               products={products}
               isLoading={isProductsLoading}
@@ -636,75 +623,205 @@ export default function BuyerPage() {
         onInitiatePurchase={handleInitiatePurchase}
       />
 
-      {isConsentModalOpen && consentRequest && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100">
-              <h3 className="text-xl font-bold text-gray-900">Review Purchase</h3>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-3">
-                {cart?.items?.map((item: any) => (
-                  <div key={item.id} className="flex justify-between items-center text-sm">
-                    <span className="text-gray-700 font-medium">{item.product?.name} x{item.quantity}</span>
-                    <span className="text-gray-900 font-semibold">₹{(item.unit_price * item.quantity).toFixed(0)}</span>
-                  </div>
-                ))}
-                <div className="border-t border-gray-200 pt-3 flex justify-between items-center">
-                  <span className="font-bold text-gray-900">Total</span>
-                  <span className="text-lg font-bold text-indigo-700">₹{cart?.subtotal?.toFixed(0)}</span>
-                </div>
+      {approvalState !== 'IDLE' && pendingPurchase && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-gray-100">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
               </div>
-              
-              <div className="p-4 bg-orange-50 rounded-xl border border-orange-100 text-orange-800 text-sm">
-                <p className="font-bold mb-1">Merchant approval:</p>
-                {consentRequest.reasons?.map((r: any, idx: number) => (
-                   <p key={idx}>{r.message}</p>
-                ))}
-                {!consentRequest.reasons?.length && <p>Required above ₹3,000</p>}
-              </div>
+              <h3 className="text-lg font-bold text-gray-900">Agent-Driven Purchase</h3>
             </div>
             
-            <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3">
-              <button
-                onClick={handleDeclineConsent}
-                disabled={isProcessingConsent}
-                className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium rounded-lg transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleApproveConsent}
-                disabled={isProcessingConsent}
-                className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm shadow-indigo-200 transition-colors disabled:opacity-50 flex items-center justify-center"
-              >
-                {isProcessingConsent ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                ) : "Approve Purchase"}
-              </button>
+            <div className="p-6 space-y-6">
+              {approvalState === 'WAITING_FOR_HUMAN_APPROVAL' && (
+                <div className="space-y-4">
+                  <h4 className="text-xl font-bold text-gray-900 text-center">Purchase Approval Required</h4>
+                  <p className="text-gray-600 text-center text-sm">
+                    The agent is ready to orchestrate this purchase for you. Please authorize the transaction below.
+                  </p>
+                  
+                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                    {pendingPurchase.type === 'buy_now' ? (
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium text-gray-800">{pendingPurchase.product.name}</span>
+                        <span className="font-bold text-indigo-700">₹{pendingPurchase.product.price}</span>
+                      </div>
+                    ) : (
+                      <>
+                        {cart?.items?.map((item: any) => (
+                          <div key={item.id} className="flex justify-between items-center text-sm py-1">
+                            <span className="text-gray-700">{item.product?.name} x{item.quantity}</span>
+                            <span className="font-medium text-gray-900">₹{(item.unit_price * item.quantity).toFixed(0)}</span>
+                          </div>
+                        ))}
+                        <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between items-center">
+                          <span className="font-bold text-gray-900">Cart Total</span>
+                          <span className="font-bold text-indigo-700">₹{Number(cart?.subtotal || 0).toFixed(0)}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={handleCancelPurchase}
+                      className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium rounded-lg transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleApprovePurchase}
+                      className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition-colors"
+                    >
+                      Approve Purchase
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {approvalState === 'AGENT_PAYMENT_AUTHORIZED' && (
+                <div className="py-8 flex flex-col items-center justify-center space-y-4">
+                  <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
+                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <h4 className="text-lg font-bold text-gray-900">Agent Payment Authorization Granted</h4>
+                </div>
+              )}
+              
+              {approvalState === 'AGENT_EXECUTING_PURCHASE' && (
+                <div className="py-6 space-y-6">
+                  <div className="flex flex-col items-center justify-center space-y-3">
+                    <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                    <h4 className="text-base font-bold text-gray-900 text-center">Agent is executing your purchase...</h4>
+                  </div>
+                  
+                  {/* GAP-2: Real streamed step events instead of hardcoded HTML */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2.5">
+                    <h5 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Live Guardrail Checks</h5>
+                    
+                    {purchaseSteps.length === 0 && (
+                      <p className="text-xs text-slate-400 italic">Awaiting first check...</p>
+                    )}
+                    
+                    {purchaseSteps.map((step) => (
+                      <div key={step.step} className="flex items-center justify-between text-sm">
+                        <span className="text-slate-700 font-medium">{step.detail || step.step}</span>
+                        <span className={`flex items-center font-semibold ml-2 shrink-0 ${
+                          step.status === 'passed' ? 'text-green-600' :
+                          step.status === 'blocked' ? 'text-red-600' :
+                          'text-indigo-500'
+                        }`}>
+                          {step.status === 'passed' && (
+                            <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                          )}
+                          {step.status === 'blocked' && (
+                            <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                          )}
+                          {step.status === 'running' && (
+                            <div className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin mr-1"></div>
+                          )}
+                          {step.status === 'passed' ? 'Pass' : step.status === 'blocked' ? 'Blocked' : 'Running'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {approvalState === 'PURCHASE_FAILED' && (
+                <div className="py-6 space-y-6">
+                  <div className="flex flex-col items-center justify-center space-y-4">
+                    <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center">
+                      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    </div>
+                    <h4 className="text-lg font-bold text-gray-900 text-center">Purchase Blocked</h4>
+                    <p className="text-sm text-gray-600 text-center px-4">
+                      {error || "An error occurred while executing the purchase."}
+                    </p>
+                  </div>
+                  
+                  <div className="flex justify-center pt-2">
+                    <button
+                      onClick={handleCancelPurchase}
+                      className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium rounded-lg transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {approvalState === 'RAZORPAY_PAYMENT_PROCESSING' && (
+                <div className="py-8 flex flex-col items-center justify-center space-y-4">
+                  <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                  <h4 className="text-lg font-bold text-gray-900 text-center">Awaiting Razorpay Checkout</h4>
+                  <p className="text-sm text-gray-500 text-center">Please complete the test payment in the Razorpay window.</p>
+                </div>
+              )}
+
+              {approvalState === 'VERIFYING' && (
+                <div className="py-8 flex flex-col items-center justify-center space-y-4">
+                  <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                  <h4 className="text-lg font-bold text-gray-900 text-center">Verifying Payment...</h4>
+                  <p className="text-sm text-gray-500 text-center">Validating actual payment signature with backend</p>
+                </div>
+              )}
+              
+              {approvalState === 'SUCCESS' && (
+                <div className="py-8 flex flex-col items-center justify-center space-y-4">
+                  <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
+                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <h4 className="text-xl font-bold text-gray-900 text-center">Purchase Successful!</h4>
+                  <div className="w-full bg-green-50 border border-green-200 rounded-xl p-4 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Payment ID</span>
+                      <span className="font-mono text-gray-900 text-xs">{pendingPurchase.finalPaymentId}</span>
+                    </div>
+                    {pendingPurchase.finalAmount !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Amount Paid</span>
+                        <span className="font-bold text-green-700">₹{Number(pendingPurchase.finalAmount).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {pendingPurchase.finalTimestamp && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Captured At</span>
+                        <span className="text-gray-700">{new Date(pendingPurchase.finalTimestamp).toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+                  {pendingPurchase.receiptUrl && (
+                    <a
+                      href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api'}${pendingPurchase.receiptUrl}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full flex items-center justify-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span>View Receipt</span>
+                    </a>
+                  )}
+                  <p className="text-xs text-gray-400">Closing automatically...</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {isProcessingBuyNow && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100">
-              <h3 className="text-xl font-bold text-gray-900 text-center">Processing Agentic Payment</h3>
-            </div>
-            <div className="p-6">
-              <div className="space-y-3">
-                {agenticPurchaseTimeline.map((step, idx) => (
-                  <div key={idx} className={`text-sm ${step.includes('✓') ? 'text-green-600 font-medium' : step.includes('Order ID') || step.includes('Payment ID') ? 'text-gray-500 font-mono text-xs' : 'text-gray-900 animate-pulse'}`}>
-                    {step}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

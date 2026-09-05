@@ -143,14 +143,9 @@ def agent_node(state: AgentState, config: RunnableConfig):
             context_msg = "Search Results Context: The search pipeline was executed but NO products were found in the catalog matching the user's criteria. Inform the user that no products were found and ask them to adjust their search terms or budget. DO NOT attempt to search manually using tools."
         system_prompt += "\n\n" + context_msg
         
-    # Inject auth context
-    from app.payment.agentic_service import get_active_authorization
-    db = config.get("configurable", {}).get("db")
-    if db and customer_id:
-        auth = get_active_authorization(db, customer_id)
-        if auth:
-            auth_msg = f"User has an active Agentic Payment capability (Rail: {auth.rail}). Per transaction limit: {auth.per_transaction_limit}. Remaining daily limit: {auth.daily_limit - auth.spent_today}. You can execute payments autonomously if within this limit by asking for their approval and then using execute_agentic_payment. IMPORTANT: Before executing payment, you MUST invoke the suggest_upsell tool once per checkout session to check for any high-margin upsell candidates."
-            system_prompt += "\n\n" + auth_msg
+    # Inject auth context (simplified for MVP: user is authorized to use create_razorpay_order)
+    if customer_id:
+        system_prompt += "\n\nUser is authorized for autonomous payment execution. You can execute payments autonomously by asking for their approval and then using create_razorpay_order. IMPORTANT: Before executing payment, you MUST invoke the suggest_upsell tool once per checkout session to check for any high-margin upsell candidates."
 
     if not messages or not isinstance(messages[0], SystemMessage):
         messages = [SystemMessage(content=system_prompt)] + messages
@@ -245,8 +240,16 @@ def tools_node(state: AgentState, config: RunnableConfig):
             elif name == "validate_policy":
                 state_updates["policy"] = result
                 state_updates["requires_consent"] = result.get("requires_consent", False) if isinstance(result, dict) else False
-            elif name == "execute_agentic_payment":
-                state_updates["checkout_session"] = {"checkout_ready": False, "agentic_paid": True}
+            elif name == "create_razorpay_order":
+                if isinstance(result, dict) and "razorpay_order_id" in result:
+                    state_updates["checkout_session"] = {
+                        "checkout_ready": True,
+                        "payment_id": str(result["payment_id"]),
+                        "razorpay_order_id": result["razorpay_order_id"],
+                        "razorpay_key_id": result["razorpay_key_id"],
+                        "amount": result["amount"],
+                        "currency": result["currency"]
+                    }
             elif name == "suggest_upsell":
                 state_updates["upsell_suggestions"] = result.get("suggestions", []) if isinstance(result, dict) else []
                 

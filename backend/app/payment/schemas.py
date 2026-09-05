@@ -46,3 +46,21 @@ class ExecuteAgenticRequest(BaseModel):
     merchant_id: str
     customer_id: Optional[str] = None
     cart_id: str
+
+class PaymentHistoryItem(BaseModel):
+    id: str
+    local_order_id: str
+    razorpay_order_id: Optional[str] = None
+    razorpay_payment_id: Optional[str] = None
+    amount: float
+    currency: str
+    status: str
+    webhook_verified: bool
+    created_at: str
+
+    class Config:
+        orm_mode = True
+
+class PaymentHistoryResponse(BaseModel):
+    payments: list[PaymentHistoryItem]
+
